@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Odin Launcher</string>
-    <string name="title_activity_main">Odin Launcher</string>
-    <string name="package_name">com.cocoon.odinlauncher</string>
-    <string name="custom_url_scheme">com.cocoon.odinlauncher</string>
+    <string name="app_name">Jindo</string>
+    <string name="title_activity_main">Jindo</string>
+    <string name="package_name">com.jindo.launcher</string>
+    <string name="custom_url_scheme">com.jindo.launcher</string>
 </resources>

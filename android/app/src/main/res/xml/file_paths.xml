@@ -2,4 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- ROMs live on the SD card (/storage/XXXX-XXXX), outside external-path, so emulators get them through root-path -->
+    <root-path name="root" path="." />
 </paths>

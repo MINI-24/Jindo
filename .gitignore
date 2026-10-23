@@ -4,5 +4,5 @@ build/
 android/app/build/
 android/.gradle/
 local.properties
-dist/
+# dist/ is the web source Capacitor copies into the app (keep it tracked)
 *.log

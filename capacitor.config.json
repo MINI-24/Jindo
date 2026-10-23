@@ -1,5 +1,10 @@
 {
-  "appId": "com.cocoon.odinlauncher",
-  "appName": "Odin Launcher",
-  "webDir": "dist"
+  "appId": "com.jindo.launcher",
+  "appName": "Jindo",
+  "webDir": "dist",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable"
+    }
+  }
 }
