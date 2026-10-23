@@ -8,8 +8,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.pm.ShortcutInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
@@ -45,9 +47,63 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends BridgeActivity {
+
+    private final HashMap<String, LauncherApps.PinItemRequest> pinRequests = new HashMap<>();
+    private String pendingPin = "";
+
+    private void handlePinShortcut(Intent intent) {
+        if (intent == null) return;
+        try {
+            LauncherApps la = getSystemService(LauncherApps.class);
+            LauncherApps.PinItemRequest req = la == null ? null : la.getPinItemRequest(intent);
+            if (req == null || !req.isValid()
+                    || req.getRequestType() != LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT) return;
+            ShortcutInfo si = req.getShortcutInfo();
+            if (si == null) return;
+            String icon = "";
+            Bitmap bitmap = null;
+            try {
+                Drawable drawable = la.getShortcutIconDrawable(si, getResources().getDisplayMetrics().densityDpi);
+                if (drawable != null) {
+                    File dir = new File(getFilesDir(), "art");
+                    if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("Cannot create art directory");
+                    File out = new File(dir, "shortcut_" + si.getPackage().replaceAll("[^a-zA-Z0-9._-]", "_")
+                            + "_" + si.getId().replaceAll("[^a-zA-Z0-9._-]", "_") + ".png");
+                    bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888);
+                    drawable.setBounds(0, 0, 256, 256);
+                    drawable.draw(new Canvas(bitmap));
+                    try (java.io.OutputStream stream = new java.io.FileOutputStream(out)) {
+                        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                            throw new java.io.IOException("Cannot save shortcut icon");
+                    }
+                    icon = out.getAbsolutePath();
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (bitmap != null) bitmap.recycle();
+            }
+            String token = UUID.randomUUID().toString();
+            CharSequence label = si.getShortLabel();
+            if (label == null || label.length() == 0) label = si.getLongLabel();
+            final String json = new JSONObject().put("token", token).put("package", si.getPackage())
+                    .put("shortcutId", si.getId()).put("label", label == null ? "" : label.toString())
+                    .put("icon", icon).toString();
+            synchronized (pinRequests) {
+                pinRequests.put(token, req);
+                pendingPin = json;
+            }
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                WebView webView = getBridge().getWebView();
+                webView.post(() -> webView.evaluateJavascript(
+                        "window.onPinShortcutRequest && window.onPinShortcutRequest(" + json + ");", null));
+            }
+        } catch (Exception ignored) {}
+    }
 
     // ROM folder picker (Files app). The tree URI becomes a plain path, since scanning reads files directly
     // with the all-files permission: .../tree/EE46-D98A%3Aroms%2Fswitch -> /storage/EE46-D98A/roms/switch
@@ -332,11 +388,19 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         makeFullScreen();
         setupNativeBridge();
+        handlePinShortcut(getIntent());
         // The status bar (system clock) can come back after dialogs, the keyboard or other apps; hide it again
         final View decor = getWindow().getDecorView();
         decor.setOnSystemUiVisibilityChangeListener(visibility -> {
             if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) decor.postDelayed(this::makeFullScreen, 1200);
         });
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handlePinShortcut(intent);
     }
 
     @Override
@@ -480,6 +544,63 @@ public class MainActivity extends BridgeActivity {
                 }
             } catch (Exception ignored) {}
             return false;
+        }
+
+        @JavascriptInterface
+        public String takePendingPin() {
+            MainActivity activity = (MainActivity) context;
+            synchronized (activity.pinRequests) {
+                String json = activity.pendingPin;
+                activity.pendingPin = "";
+                return json;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean acceptPinShortcut(String token) {
+            MainActivity activity = (MainActivity) context;
+            LauncherApps.PinItemRequest req;
+            synchronized (activity.pinRequests) {
+                req = activity.pinRequests.remove(token);
+            }
+            try {
+                return req != null && req.accept();
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void rejectPinShortcut(String token) {
+            MainActivity activity = (MainActivity) context;
+            synchronized (activity.pinRequests) {
+                activity.pinRequests.remove(token);
+            }
+        }
+
+        @JavascriptInterface
+        public String launchShortcut(String pkg, String shortcutId) {
+            try {
+                LauncherApps la = context.getSystemService(LauncherApps.class);
+                if (la == null || !la.hasShortcutHostPermission())
+                    return "기본 홈 앱이어야 바로가기를 열 수 있어요";
+                la.startShortcut(pkg, shortcutId, null, null, android.os.Process.myUserHandle());
+                return "";
+            } catch (Exception e) {
+                return e.getMessage() == null ? e.toString() : e.getMessage();
+            }
+        }
+
+        @JavascriptInterface
+        public boolean launchIntentUri(String uri) {
+            try {
+                Intent intent = Intent.parseUri(uri, Intent.URI_INTENT_SCHEME);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
         }
 
         @JavascriptInterface

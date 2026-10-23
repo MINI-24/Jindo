@@ -811,8 +811,8 @@
 
   <!-- ================= TOP BAR (CLEAN, NO OVERFLOW, PROPORTIONED FOR ODIN 3) ================= -->
   <header class="relative z-20 px-8 py-3 flex items-center justify-end gap-2">
-    <!-- Shown only once a BGM file is picked in Settings > 오디오 -->
-    <div id="bgmWidget" class="hidden mr-auto items-center gap-2 px-3.5 py-1.5 rounded-2xl liquid-glass text-xs font-medium cursor-pointer max-w-xs" onclick="toggleBgm()">
+    <!-- Shown only once a BGM file is picked in Settings > 오디오; sits with the top buttons, clear of the card wheel on the left -->
+    <div id="bgmWidget" class="hidden mr-1 items-center gap-2 px-3.5 py-1.5 rounded-2xl liquid-glass text-xs font-medium cursor-pointer max-w-xs" onclick="toggleBgm()">
       <span class="text-xs accent-text">🎵</span>
       <span id="bgmTitle" class="text-white/70 font-semibold truncate text-[11px] whitespace-nowrap">Jindo Lounge</span>
     </div>
@@ -1672,6 +1672,8 @@
       { id: 'settings', name: '설정', iconType: 'settings' },
       { id: 'playstore', name: 'Google Play', iconType: 'playstore' }
     ];
+    try { const saved = JSON.parse(localStorage.getItem('jindo_dock') || 'null'); if (Array.isArray(saved) && saved.length) dockSlots = saved; } catch (e) {}
+    function saveDock() { localStorage.setItem('jindo_dock', JSON.stringify(dockSlots)); }
 
     let currentPlatformView = 'all';
     let currentSelectedIndex = 0;
@@ -2158,13 +2160,15 @@
 
     function setPlatformView(plat) {
       if (keySound === 'select' || keySound === 'back') setKeySound(plat === 'all' ? 'folder_close' : 'folder_open');
+      const from = currentPlatformView;
       currentPlatformView = plat;
       const sound = keySound;
       applyActiveLayout();
       keySound = sound;   // the folder sound wins over the layout sound
       topMenu = null;
       renderTopBar();
-      currentSelectedIndex = 0;
+      // Back out of a folder: the cursor lands on that folder, not the first one
+      currentSelectedIndex = plat === "all" ? Math.max(0, getActiveItems().findIndex(x => x && x.platform === from)) : 0;
       isDockFocused = false;
 
       // Old cards sink out first (cards-leave), then the new list is built and staggers in
@@ -2223,7 +2227,10 @@
           } else {
             // Custom added app
             div.classList.add('bg-white/15', 'text-white');
-            div.innerHTML = `<span class="text-xl">${slot.customIcon || '📱'}</span>`;
+            const ic = slot.customIcon || '';
+            div.innerHTML = /^(data:image|\/|https?:)/.test(ic)
+              ? `<img src="${escapeHtml(ic.startsWith('/') ? artSrc(ic) : ic)}" class="w-full h-full object-cover rounded-[inherit]">`
+              : `<span class="text-xl">${escapeHtml(ic || '📱')}</span>`;
           }
         }
 
@@ -2236,7 +2243,7 @@
       if (slot.isDrawer) {
         openAllAppsDrawer();
       } else {
-        launchApp(slot.name);
+        launchApp(slot.pkg || slot.name);
       }
     }
 
@@ -2247,23 +2254,16 @@
     }
 
     // App chosen from Drawer
-    function handleAppChosen(appName, icon) {
+    function handleAppChosen(appName, icon, pkg) {
       if (targetSlotIndexForAdd !== null) {
-        // Adding into empty or replaced slot!
-        dockSlots[targetSlotIndexForAdd] = {
-          id: 'custom_' + Date.now(),
-          name: appName,
-          customIcon: icon,
-          isEmpty: false
-        };
-        targetSlotIndexForAdd = null;
+        // Adding into empty or replaced slot
+        dockSlots[targetSlotIndexForAdd] = { id: 'custom_' + Date.now(), name: appName, pkg: pkg || '', customIcon: icon, isEmpty: false };
+        saveDock();
         closeAllAppsDrawer();
-        document.getElementById('allAppsHeaderPrompt').innerText = "전체 앱";
         renderJindoDock();
-        alert(`[하단 독 등록 완료]\n'${appName}' 앱이 하단 독 슬롯에 추가되었습니다!`);
       } else {
         closeAllAppsDrawer();
-        launchApp(appName);
+        launchApp(pkg || appName);
       }
     }
 
@@ -2315,6 +2315,7 @@
         name: '빈 공간 (+)',
         isEmpty: true
       };
+      saveDock();
       closeDockActionModal();
       renderJindoDock();
     }
@@ -2694,6 +2695,12 @@
       current[field] = stored;
       current.artFrom = { ...(current.artFrom || {}), [field]: stored !== url ? url : undefined };
       releaseArt(old);
+      // A new logo without its own placement takes the last one used, not the default corner
+      const recent = recentLogoLayouts()[0];
+      if (field === "logoUrl" && stored && !current.logoLayout && recent) {
+        current.logoLayout = { x: recent.x, y: recent.y, size: recent.size };
+        applyLogoLayout(effectiveLogoLayout(current));
+      }
       saveLibrary();
       renderLiveSteamGridGallery();
       markAppliedSgdbArt();
@@ -3285,7 +3292,23 @@
       modal.classList.remove('pointer-events-none', 'opacity-0');
       padFocusFirst(modal, '.new-app');
     }
-    function closeNewGameModal() { document.getElementById('newGameModal').classList.add('pointer-events-none', 'opacity-0'); }
+    function closeNewGameModal() {
+      document.getElementById('newGameModal').classList.add('pointer-events-none', 'opacity-0');
+      if (newGameApp && newGameApp.shortcut) callNative('rejectPinShortcut', newGameApp.shortcut.token);
+      newGameApp = null;
+    }
+
+    // Another app asks to pin a shortcut: same window, the app grid shows only that shortcut
+    window.onPinShortcutRequest = req => {
+      callNative('takePendingPin');
+      if (!req || !req.token) return;
+      openNewGameModal(currentPlatformView);
+      const app = { name: req.label || req.package, packageName: req.package, icon: req.icon ? fileUrl(req.icon) : '', shortcut: { token: req.token, pkg: req.package, id: req.shortcutId } };
+      newGameApps = [app];
+      document.getElementById('newGameAppGrid').innerHTML = '';
+      pickNewGameApp(0);
+      document.getElementById('newGameTitle').focus();
+    };
 
     function setNewGamePlatform(plat) {
       newGamePlatform = plat;
@@ -3336,7 +3359,11 @@
     async function saveNewGame() {
       if (!newGameApp) return alert('추가할 앱을 골라주세요.');
       const title = document.getElementById('newGameTitle').value.trim() || newGameApp.name;
+      const sc = newGameApp.shortcut;
+      if (sc && !callNative('acceptPinShortcut', sc.token)) return alert('바로가기를 추가하지 못했어요. 앱에서 다시 시도해주세요.');
+      if (sc) newGameApp.shortcut = null;   // accepted: closing must not reject it
       games.push({
+        ...(sc ? { shortcut: { pkg: sc.pkg, id: sc.id } } : {}),
         id: 'game_' + Date.now(), title, platform: newGamePlatform,
         packageName: newGameApp.packageName, iconUrl: await shrinkIcon(newGameApp.icon),
         boxUrl: '', heroUrl: '', logoUrl: '', lastPlayed: Date.now()
@@ -3827,7 +3854,11 @@
     function launchGame() {
       const game = getActiveItems()[currentSelectedIndex];
       if (!game || game.isAdd) return;
-      if (game.packageName) {
+      if (game.shortcut) {
+        // Pinned shortcut from another app (needs Jindo as the default home)
+        const err = callNative('launchShortcut', game.shortcut.pkg, game.shortcut.id);
+        if (err !== '') { playSfx('error'); alert(err || '바로가기를 열 수 없어요.'); return; }
+      } else if (game.packageName) {
         // Added from the installed apps: start that app
         if (!callNative('launchApp', game.packageName)) {
           playSfx('error');
@@ -4427,6 +4458,7 @@
 
       refreshBattery();
       setInterval(() => refreshBattery(), 10000);
+      try { const pin = callNative('takePendingPin'); if (pin) window.onPinShortcutRequest(JSON.parse(pin)); } catch (e) {}
     }
 
     function renderDynamicNativeApps(apps) {
