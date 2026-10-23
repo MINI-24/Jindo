@@ -507,10 +507,12 @@
   /* Liquid glass theme: clear panels with a bright rim and inner light over the background art */
   body.theme-glass .liquid-glass, body.theme-glass .qp, body.theme-glass .top-menu,
   body.theme-glass #settingsModal > div, body.theme-glass #universalCustomModal > div, body.theme-glass #folderEditModal > div {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 48%, rgba(255, 255, 255, 0.13) 100%) !important;
+    /* --glass-tint: dark body under the glass (0 = fully clear); --glass-blur: blur of what is behind */
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 48%, rgba(255, 255, 255, 0.13) 100%),
+      rgba(10, 12, 18, var(--glass-tint, 0.15)) !important;
     border: 1px solid rgba(255, 255, 255, 0.4) !important;
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), inset 0 -10px 24px rgba(255, 255, 255, 0.05), 0 14px 36px rgba(0, 0, 0, 0.35) !important;
-    -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(var(--glass-blur, 18px)) saturate(170%); backdrop-filter: blur(var(--glass-blur, 18px)) saturate(170%);
   }
   body.theme-glass #settingsModal .bg-white\/5, body.theme-glass .seg-pill, body.theme-glass .dd-btn, body.theme-glass .group-option {
     background: rgba(255, 255, 255, 0.1) !important; border-color: rgba(255, 255, 255, 0.28) !important;
@@ -1166,16 +1168,16 @@
             <h3 class="text-lg font-black tracking-tight text-white">테마 및 색상 설정</h3>
           </div>
 
-          <!-- THEME MODE PICKER -->
+          <!-- LIQUID GLASS: how see-through the panels are and how much they blur what is behind -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-black uppercase tracking-wider accent-text">화면 테마 모드</h4>
-            </div>
-            
-            <div class="seg-pill">
-              <div onclick="setThemeMode('dark')" id="pillTheme_dark" class="seg-option active">다크</div>
-              <div onclick="setThemeMode('light')" id="pillTheme_light" class="seg-option">라이트</div>
-              <div onclick="setThemeMode('glass')" id="pillTheme_glass" class="seg-option">리퀴드 글래스</div>
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">리퀴드 글래스</h4>
+            <div class="grid grid-cols-[4rem_1fr_3rem] items-center gap-x-3 gap-y-3 text-xs font-bold">
+              <span>투명도</span>
+              <input type="range" id="glassClear" min="0" max="100" oninput="setGlass('clear', this.value / 100)">
+              <span id="glassClearValue" class="text-right text-white/60 tabular"></span>
+              <span>블러</span>
+              <input type="range" id="glassBlur" min="0" max="40" oninput="setGlass('blur', +this.value)">
+              <span id="glassBlurValue" class="text-right text-white/60 tabular"></span>
             </div>
           </div>
 
@@ -3038,6 +3040,24 @@
       renderLiveSteamGridGallery();
     }
 
+    const glassPrefs = { clear: 0.8, blur: 18 };
+    try { Object.assign(glassPrefs, JSON.parse(localStorage.getItem('jindo_glass') || '{}')); } catch (e) {}
+    function setGlass(key, value) {
+      glassPrefs[key] = value;
+      localStorage.setItem('jindo_glass', JSON.stringify(glassPrefs));
+      applyGlass();
+    }
+    function applyGlass() {
+      const root = document.documentElement.style;
+      root.setProperty('--glass-tint', ((1 - glassPrefs.clear) * 0.85).toFixed(3));
+      root.setProperty('--glass-blur', glassPrefs.blur + 'px');
+      const c = document.getElementById('glassClear'), b = document.getElementById('glassBlur');
+      c.value = Math.round(glassPrefs.clear * 100); b.value = glassPrefs.blur;
+      setRangeFill(c); setRangeFill(b);
+      document.getElementById('glassClearValue').textContent = Math.round(glassPrefs.clear * 100) + '%';
+      document.getElementById('glassBlurValue').textContent = glassPrefs.blur + 'px';
+    }
+
     function setThemeMode(mode) {
       if (mode === 'oled') mode = 'dark';   // OLED was dropped (it looked the same as dark)
       document.body.classList.remove('theme-light', 'theme-oled', 'theme-glass');
@@ -4620,8 +4640,9 @@
     setTimeout(initNativeAndroidBridge, 300);
 
       // Load saved preferences
-      const savedTheme = localStorage.getItem('jindo_theme') || 'dark';
-      setThemeMode(savedTheme);
+      // Dark / light were dropped: liquid glass is the look, tuned in Settings
+      setThemeMode('glass');
+      applyGlass();
       const savedDock = localStorage.getItem('jindo_dock_mode') || 'visible';
       setDockMode(savedDock);
       setLayout(localStorage.getItem('jindo_layout') || 'horizontal');
