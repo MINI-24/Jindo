@@ -2981,8 +2981,11 @@
     function scrollSettingsTo(el) {
       const panel = document.getElementById('settingsContentPanel');
       const items = settingsItems();
-      if (el === items[0]) return panel.scrollTo({ top: 0, behavior: 'smooth' });
-      if (el === items[items.length - 1]) return panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+      // Held key (repeats under 200 ms apart): jump, so the scroll keeps up with the focus
+      const now = performance.now(), behavior = now - (scrollSettingsTo.t || 0) < 200 ? 'auto' : 'smooth';
+      scrollSettingsTo.t = now;
+      if (el === items[0]) return panel.scrollTo({ top: 0, behavior });
+      if (el === items[items.length - 1]) return panel.scrollTo({ top: panel.scrollHeight, behavior });
       const pr = panel.getBoundingClientRect(), PAD = 36;
       const box = el.closest('.settings-section > div') || el;
       let r = box.getBoundingClientRect();
@@ -2990,7 +2993,7 @@
       let delta = 0;
       if (r.top < pr.top + PAD) delta = r.top - pr.top - PAD;
       else if (r.bottom > pr.bottom - PAD) delta = r.bottom - pr.bottom + PAD;
-      if (delta) panel.scrollBy({ top: delta, behavior: 'smooth' });
+      if (delta) panel.scrollTo({ top: panel.scrollTop + delta, behavior });
     }
 
     function handleSettingsKey(key) {
@@ -3009,10 +3012,20 @@
         const btns = settingsNavButtons();
         if (key === 'ArrowDown' || key === 'ArrowUp') {
           settingsNavIdx = (settingsNavIdx + (key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length;
-          btns[settingsNavIdx].click();
-        } else if ((key === 'ArrowRight' || key === 'A') && settingsItems().length) {
-          settingsZone = 'content';
-          settingsItemIdx = 0;
+          // While the key is held only the focus ring moves; the page opens once it settles
+          const fast = performance.now() - (handleSettingsKey.navT || 0) < 200;
+          handleSettingsKey.navT = performance.now();
+          clearTimeout(handleSettingsKey.navOpen);
+          const btn = btns[settingsNavIdx];
+          if (fast) handleSettingsKey.navOpen = setTimeout(() => { handleSettingsKey.navOpen = null; btn.click(); }, 150);
+          else btn.click();
+        } else if (key === 'ArrowRight' || key === 'A') {
+          // A page still waiting to open opens now, before focus enters it
+          if (handleSettingsKey.navOpen) { clearTimeout(handleSettingsKey.navOpen); handleSettingsKey.navOpen = null; btns[settingsNavIdx].click(); }
+          if (settingsItems().length) {
+            settingsZone = 'content';
+            settingsItemIdx = 0;
+          }
         }
         updateSettingsFocus();
         return;
