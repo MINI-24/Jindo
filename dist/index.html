@@ -2876,8 +2876,26 @@
       const el = settingsZone === 'nav' ? settingsNavButtons()[settingsNavIdx] : settingsItems()[settingsItemIdx];
       if (el) {
         el.classList.add('pad-focus');
-        el.scrollIntoView({ block: 'nearest' });
+        if (settingsZone === 'nav') el.scrollIntoView({ block: 'nearest' });
+        else scrollSettingsTo(el);
       }
+    }
+
+    // Keeps the whole box around the focused control on screen (its heading too), clear of the edge fade;
+    // the first control shows the page top, the last one the page bottom
+    function scrollSettingsTo(el) {
+      const panel = document.getElementById('settingsContentPanel');
+      const items = settingsItems();
+      if (el === items[0]) return panel.scrollTo({ top: 0, behavior: 'smooth' });
+      if (el === items[items.length - 1]) return panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+      const pr = panel.getBoundingClientRect(), PAD = 36;
+      const box = el.closest('.settings-section > div') || el;
+      let r = box.getBoundingClientRect();
+      if (r.height > pr.height - PAD * 2) r = el.getBoundingClientRect();   // a very tall box: just the control
+      let delta = 0;
+      if (r.top < pr.top + PAD) delta = r.top - pr.top - PAD;
+      else if (r.bottom > pr.bottom - PAD) delta = r.bottom - pr.bottom + PAD;
+      if (delta) panel.scrollBy({ top: delta, behavior: 'smooth' });
     }
 
     function handleSettingsKey(key) {
