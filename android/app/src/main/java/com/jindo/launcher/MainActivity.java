@@ -99,6 +99,95 @@ public class MainActivity extends BridgeActivity {
                 }).start();
             });
 
+    // ===== Backup / restore =====
+    // The ZIP holds backup.json (the page's settings and library) and the app's stored files under files/<dir>/.
+    static final String[] BACKUP_DIRS = { "art", "sounds", "music", "packs", "fonts", "video" };
+    private String backupJobId, backupJson;
+    private final ActivityResultLauncher<String> backupSaver = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/zip"), uri -> {
+                final String id = backupJobId, json = backupJson;
+                if (uri == null) { notifyJob(id, "{\"cancelled\":true}"); return; }
+                new Thread(() -> {
+                    try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(getContentResolver().openOutputStream(uri))) {
+                        zip.putNextEntry(new java.util.zip.ZipEntry("backup.json"));
+                        zip.write(json.getBytes("UTF-8"));
+                        zip.closeEntry();
+                        int files = 0;
+                        for (String dir : BACKUP_DIRS) files += zipTree(zip, new File(getFilesDir(), dir), dir);
+                        zip.finish();
+                        notifyJob(id, "{\"files\":" + files + "}");
+                    } catch (Exception e) {
+                        notifyJob(id, "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                    }
+                }).start();
+            });
+
+    private int zipTree(java.util.zip.ZipOutputStream zip, File f, String name) throws java.io.IOException {
+        File[] children = f.listFiles();
+        if (children != null) {
+            int n = 0;
+            for (File c : children) n += zipTree(zip, c, name + "/" + c.getName());
+            return n;
+        }
+        if (!f.isFile() || f.getName().endsWith(".part") || f.getName().endsWith(".shrink")) return 0;
+        zip.putNextEntry(new java.util.zip.ZipEntry(name));
+        try (InputStream in = new java.io.FileInputStream(f)) {
+            byte[] buf = new byte[65536];
+            int r;
+            while ((r = in.read(buf)) > 0) zip.write(buf, 0, r);
+        }
+        zip.closeEntry();
+        return 1;
+    }
+
+    void exportBackup(String id, String json, String fileName) {
+        backupJobId = id;
+        backupJson = json;
+        runOnUiThread(() -> backupSaver.launch(fileName));
+    }
+
+    // Restore: files go back under files/<dir>/ (only the backup folders, never outside files/);
+    // backup.json comes back to the page, which writes the settings and reloads.
+    private final ActivityResultLauncher<String[]> backupOpener = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(), uri -> {
+                final String id = backupJobId;
+                if (uri == null) { notifyJob(id, "{\"cancelled\":true}"); return; }
+                new Thread(() -> {
+                    String json = null;
+                    try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(getContentResolver().openInputStream(uri))) {
+                        String root = getFilesDir().getCanonicalPath() + File.separator;
+                        java.util.zip.ZipEntry e;
+                        while ((e = zin.getNextEntry()) != null) {
+                            if (e.isDirectory()) continue;
+                            String name = e.getName().replace('\\', '/');
+                            if (name.equals("backup.json")) {
+                                ByteArrayOutputStream b = new ByteArrayOutputStream();
+                                byte[] buf = new byte[65536];
+                                int r;
+                                while ((r = zin.read(buf)) > 0 && b.size() < 32 * 1024 * 1024) b.write(buf, 0, r);
+                                json = b.toString("UTF-8");
+                                continue;
+                            }
+                            String top = name.contains("/") ? name.substring(0, name.indexOf('/')) : "";
+                            if (!java.util.Arrays.asList(BACKUP_DIRS).contains(top)) continue;
+                            File out = new File(getFilesDir(), name);
+                            if (!out.getCanonicalPath().startsWith(root)) continue;
+                            out.getParentFile().mkdirs();
+                            copy(zin, out);
+                        }
+                        if (json == null) throw new Exception("Jindo 백업 파일이 아니에요");
+                        notifyJob(id, new JSONObject().put("json", json).toString());
+                    } catch (Exception ex) {
+                        notifyJob(id, "{\"error\":" + JSONObject.quote(String.valueOf(ex.getMessage())) + "}");
+                    }
+                }).start();
+            });
+
+    void importBackup(String id) {
+        backupJobId = id;
+        runOnUiThread(() -> backupOpener.launch(new String[]{"application/zip", "application/x-zip-compressed", "application/octet-stream"}));
+    }
+
     void pickFile(String id, String[] mimeTypes, String subdir) {
         pickJobId = id;
         pickSubdir = subdir;
@@ -865,6 +954,16 @@ public class MainActivity extends BridgeActivity {
             if (!f.getAbsolutePath().startsWith(context.getFilesDir().getAbsolutePath())) return false;
             MainActivity.deleteTree(f);
             return true;
+        }
+
+        @JavascriptInterface
+        public void exportBackup(String id, String json, String fileName) {
+            ((MainActivity) context).exportBackup(id, json, MainActivity.safeName(fileName));
+        }
+
+        @JavascriptInterface
+        public void importBackup(String id) {
+            ((MainActivity) context).importBackup(id);
         }
 
         @JavascriptInterface

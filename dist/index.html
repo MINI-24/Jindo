@@ -523,6 +523,11 @@
     box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45), inset 0 -6px 14px rgba(255, 255, 255, 0.12);
   }
 
+  /* HERO preview video / GIF: fades in over the background, under the vignette */
+  .hero-preview { opacity: 0; transition: opacity 600ms ease; pointer-events: none; }
+  .hero-preview.show { opacity: 1; }
+  .hero-preview:not([src]) { display: none; }
+
   /* Top bar: one height for every control; its menus drop down under the button */
   .top-btn { height: 32px; }
   .top-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 10rem; padding: 6px; border-radius: 14px; z-index: 40;
@@ -769,7 +774,8 @@
   <div class="fixed inset-0 overflow-hidden pointer-events-none z-0" id="heroWrapper">
     <div id="heroBg" class="w-full h-full bg-cover bg-center opacity-80"></div>
     <div id="heroBgPrev" class="absolute inset-0 bg-cover bg-center hero-fading"></div>
-    <video id="heroVideo" class="w-full h-full object-cover absolute inset-0 hidden" loop muted playsinline></video>
+    <video id="heroVideo" class="hero-preview absolute inset-0 w-full h-full object-cover" loop muted playsinline></video>
+    <img id="heroGif" class="hero-preview absolute inset-0 w-full h-full object-cover" alt="">
     <div id="overlayVignette" class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
     <div id="overlayGradient" class="absolute inset-0 bg-gradient-to-r from-black/85 via-black/25 to-black/75"></div>
   </div>
@@ -922,6 +928,7 @@
           <div onclick="selectCustSlot('box')" id="custSlot_box" class="seg-option !py-1.5 active">아이콘</div>
           <div onclick="selectCustSlot('hero')" id="custSlot_hero" class="seg-option !py-1.5">HERO</div>
           <div onclick="selectCustSlot('logo')" id="custSlot_logo" class="seg-option !py-1.5">로고</div>
+          <div onclick="selectCustSlot('video')" id="custSlot_video" class="seg-option !py-1.5">영상</div>
         </div>
         <button onclick="closeUniversalCustomizer()" class="ml-auto w-8 h-8 flex-shrink-0 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center" title="닫기">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
@@ -990,6 +997,9 @@
             </button>
             <button onclick="switchSettingsSection('api')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="api">
               게임 아트 설정
+            </button>
+            <button onclick="switchSettingsSection('backup')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="backup">
+              백업 및 복원
             </button>
             <button onclick="switchSettingsSection('about')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="about">
               기기 정보 및 업데이트
@@ -1315,6 +1325,21 @@
         </div>
 
         <!-- SEC ABOUT -->
+        <div id="secBackup" class="settings-section space-y-6 hidden">
+          <div>
+            <h3 class="text-lg font-black tracking-tight">백업 및 복원</h3>
+          </div>
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">내보내기</h4>
+            <button onclick="exportBackup()" class="w-full py-2.5 rounded-xl accent-bg text-black text-xs font-black">백업 파일 만들기</button>
+          </div>
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">가져오기</h4>
+            <button onclick="importBackup()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">백업 파일 불러오기</button>
+          </div>
+          <div id="backupStatus" class="text-[11px] text-white/60"></div>
+        </div>
+
         <div id="secAbout" class="settings-section space-y-6 hidden">
           <div>
             <h3 class="text-lg font-black tracking-tight text-white">기기 정보</h3>
@@ -1598,7 +1623,8 @@
 
     // Art is kept on the device: a picked web image is downloaded into the app's files/art/ (JindoNative.cacheImage)
     // and the item stores that file path. Replacing, clearing or deleting removes the file once nothing uses it.
-    const ART_FIELDS = ['boxUrl', 'heroUrl', 'logoUrl'];
+    const ART_FIELDS = ['boxUrl', 'heroUrl', 'logoUrl', 'videoUrl'];
+    const isVideoFile = path => !/\.gif$/i.test(path || '') && /\.(mp4|webm|mkv|mov|m4v|3gp)$/i.test(path || '');
     function artSrc(url) {
       return url && url.startsWith('/') ? fileUrl(url) : url;
     }
@@ -1621,7 +1647,7 @@
     // Deletes stored files no folder or game points at any more
     function releaseArt(...paths) {
       const used = new Set([...games, ...platformFolders].flatMap(it => ART_FIELDS.map(f => it[f])));
-      paths.forEach(path => { if (path && path.includes('/files/art/') && !used.has(path)) callNative('deleteFile', path); });
+      paths.forEach(path => { if (path && /\/files\/(art|video)\//.test(path) && !used.has(path)) callNative('deleteFile', path); });
     }
     // Library saved before this: web addresses become local files (done once, in the background)
     async function moveArtOnDevice() {
@@ -1807,8 +1833,37 @@
 
     let currentHeroUrl = '';
 
+    // Preview video / GIF over the HERO once the selection rests on an item for a moment
+    let heroPreviewTimer = null, heroPreviewItem = null;
+    function stopHeroPreview() {
+      clearTimeout(heroPreviewTimer);
+      const v = document.getElementById('heroVideo'), g = document.getElementById('heroGif');
+      v.classList.remove('show'); g.classList.remove('show');
+      v.pause(); v.removeAttribute('src'); v.load();
+      g.removeAttribute('src');
+    }
+    function scheduleHeroPreview(item) {
+      stopHeroPreview();
+      const path = item && item.videoUrl;
+      if (!path) return;
+      heroPreviewTimer = setTimeout(() => {
+        if (getActiveItems()[currentSelectedIndex] !== item || document.hidden) return;
+        if (isVideoFile(path)) {
+          const v = document.getElementById('heroVideo');
+          v.src = artSrc(path);
+          v.oncanplay = () => { v.oncanplay = null; v.play().catch(() => {}); v.classList.add('show'); };
+        } else {
+          const g = document.getElementById('heroGif');
+          g.onload = () => g.classList.add('show');
+          g.src = artSrc(path);
+        }
+      }, 2500);
+    }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopHeroPreview(); });
+
     function updateHeroView(item) {
       if (!item) return;
+      if (heroPreviewItem !== item) { heroPreviewItem = item; scheduleHeroPreview(item); }
 
       const logo = document.getElementById('heroLogo');
       const logoUrl = item.logoUrl || '';
@@ -2164,7 +2219,7 @@
     // file upload and any SteamGridDB image picked all go to this slot.
     function selectCustSlot(slot) {
       currentCustTab = slot;
-      ['box', 'hero', 'logo'].forEach(s => document.getElementById('custSlot_' + s).classList.toggle('active', s === slot));
+      ['box', 'hero', 'logo', 'video'].forEach(s => document.getElementById('custSlot_' + s).classList.toggle('active', s === slot));
       renderLiveSteamGridGallery();
       showArtResults();
     }
@@ -2262,13 +2317,14 @@
 
     // First tile of the results: a picture from the device, in this slot's shape
     function artAddTile() {
-      const shape = { box: 'aspect-ratio:2/3', hero: 'aspect-ratio:16/9', logo: 'aspect-ratio:16/9' }[currentCustTab];
-      return `<button onclick="uploadArtFile()" style="${shape}" class="pad-item relative ${currentCustTab === 'hero' ? 'col-span-2' : ''} rounded-xl border-2 border-dashed border-white/25 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50">
+      const shape = { box: 'aspect-ratio:2/3', hero: 'aspect-ratio:16/9', logo: 'aspect-ratio:16/9', video: 'aspect-ratio:16/9' }[currentCustTab];
+      return `<button onclick="uploadArtFile()" style="${shape}" class="pad-item relative ${currentCustTab === 'hero' || currentCustTab === 'video' ? 'col-span-2' : ''} rounded-xl border-2 border-dashed border-white/25 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
         </button>`;
     }
     function showArtResults() {
-      if (lastSgdbResults) renderSgdbResults(lastSgdbResults);
+      // 영상 has no SteamGridDB results: just the + tile (mp4 / webm / gif from the device)
+      if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
       else document.getElementById('sgdbResults').innerHTML = artAddTile();
     }
 
@@ -2276,6 +2332,7 @@
     let lastSgdbResults = null;
     function renderSgdbResults(all) {
       lastSgdbResults = all;
+      if (currentCustTab === 'video') return showArtResults();
       const order = [currentCustTab];
       document.getElementById('sgdbResults').innerHTML = artAddTile() + order.map(kind => `
         ${all[kind].map(a => {
@@ -2295,7 +2352,7 @@
     function markAppliedSgdbArt() {
       const current = getActiveItems()[currentSelectedIndex];
       if (!current) return;
-      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl' }[currentCustTab];
+      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
       const applied = (current.artFrom || {})[field] || current[field];
       document.querySelectorAll('.sgdb-art').forEach(b => {
         const on = !!applied && b.dataset.url === applied;
@@ -2344,11 +2401,11 @@
       const container = document.getElementById('steamGridLiveGallery');
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
-      const url = { box: current.boxUrl, logo: current.logoUrl, hero: current.heroUrl }[currentCustTab] || '';
+      const url = { box: current.boxUrl, logo: current.logoUrl, hero: current.heroUrl, video: current.videoUrl }[currentCustTab] || '';
 
       container.innerHTML = `
         <div class="relative flex-1 min-h-[64px] rounded-xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-[11px] text-white/40">
-          ${url ? `<img src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain">` : '현재 이미지 없음'}
+          ${!url ? '현재 이미지 없음' : isVideoFile(url) ? `<video src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>` : `<img src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain">`}
           ${url ? `<button onclick="selectCustArt('')" class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/70 text-[10px] font-bold text-white">지우기</button>` : ''}
         </div>
         <div class="flex gap-1.5">
@@ -2419,7 +2476,7 @@
     async function selectCustArt(url) {
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
-      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl' }[currentCustTab];
+      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
       const seq = ++artPickSeq;
       const status = document.getElementById('sgdbStatus');
       let stored = url;
@@ -2447,6 +2504,12 @@
 
     // "+" tile: a picture from the device is copied into the app's art folder and used like a downloaded one
     async function uploadArtFile() {
+      if (currentCustTab === 'video') {
+        const v = await nativeJob('pickFile', 'video/*,image/gif', 'video');
+        if (v.error) return alert(v.error);
+        if (v.path) selectCustArt(v.path);
+        return;
+      }
       const r = await nativeJob('pickFile', 'image/*', 'art');
       if (r.error) return alert(r.error);
       if (!r.path) return;
@@ -2455,6 +2518,36 @@
         return alert('이미지를 읽을 수 없어요.');
       }
       selectCustArt(r.path);
+    }
+
+    // ===== Backup / restore (Settings > 백업 및 복원) =====
+    // Everything the launcher keeps: its settings (localStorage jindo_*) plus the stored files (art, sounds,
+    // music, packs, fonts, videos) in one ZIP; importing puts both back and reloads.
+    async function exportBackup() {
+      const status = document.getElementById('backupStatus');
+      const data = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k.startsWith('jindo_')) data[k] = localStorage.getItem(k);
+      }
+      const d = new Date(), pad = n => String(n).padStart(2, '0');
+      const name = `jindo-backup-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.zip`;
+      status.textContent = '만드는 중...';
+      const r = await nativeJob('exportBackup', JSON.stringify({ app: 'jindo', version: APP_VERSION, data }), name);
+      status.textContent = r.cancelled ? '' : r.error ? '실패: ' + r.error : `저장했어요 (${name}, 파일 ${r.files}개)`;
+    }
+    async function importBackup() {
+      const status = document.getElementById('backupStatus');
+      status.textContent = '불러오는 중...';
+      const r = await nativeJob('importBackup');
+      if (r.cancelled) return (status.textContent = '');
+      let backup = null;
+      try { backup = JSON.parse(r.json || 'null'); } catch (e) {}
+      if (r.error || !backup || backup.app !== 'jindo') return (status.textContent = '실패: ' + (r.error || 'Jindo 백업 파일이 아니에요'));
+      if (!confirm('지금 설정과 라이브러리를 백업 내용으로 바꿀까요?')) return (status.textContent = '');
+      Object.keys(localStorage).filter(k => k.startsWith('jindo_')).forEach(k => localStorage.removeItem(k));
+      Object.entries(backup.data || {}).forEach(([k, v]) => { if (k.startsWith('jindo_')) localStorage.setItem(k, v); });
+      location.reload();
     }
 
     // ===== Folder menu (Y on a folder) =====
@@ -2741,7 +2834,7 @@
           b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5';
         }
       });
-      const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp' }[secId];
+      const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp', 'backup': 'secBackup' }[secId];
       if (target) document.getElementById(target).classList.remove('hidden');
       if (secId === 'sound' && !silkAssets) loadSilk();
       // Font previews and the platform list are built only when their page is opened
@@ -3394,6 +3487,7 @@
       playSfx('launch');
       keySound = null;
       document.getElementById('bgmAudio').pause();
+      stopHeroPreview();
       game.lastPlayed = Date.now();
       saveLibrary();
       // Recent sort moves the game; keep the focus on it
@@ -4365,7 +4459,7 @@
         return;
       }
       if (isOpen('universalCustomModal') && (key === 'L1' || key === 'R1')) {
-        const slots = ['box', 'hero', 'logo'];
+        const slots = ['box', 'hero', 'logo', 'video'];
         selectCustSlot(slots[(slots.indexOf(currentCustTab) + (key === 'R1' ? 1 : -1) + slots.length) % slots.length]);
         return;
       }
@@ -4438,6 +4532,13 @@
         if (isDockFocused) {
           currentDockSlotIndex = stepIndex(currentDockSlotIndex, -1, dockSlots.length, repeat);
           renderJindoDock();
+        } else if (currentLayout === 'list') {
+          // 세로 목록: up/down turn the wheel, so ◀ opens the dock (▲ goes back)
+          if (repeat) return;
+          isDockFocused = true;
+          currentDockSlotIndex = 0;
+          document.getElementById('bottomDock').classList.add('active-peek');
+          renderMainView();
         } else {
           selectItem(stepIndex(currentSelectedIndex, -1, items.length, repeat), repeat);
         }
