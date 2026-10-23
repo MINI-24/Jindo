@@ -561,16 +561,18 @@
   #settingsNav .settings-nav-btn { padding-top: 7px; padding-bottom: 7px; }
 
   /* Settings dropdowns (enhanceChoiceGroups) */
-  .dd-wrap { min-width: 11rem; }
+  /* The open list floats over what is below it, so neighbours never move */
+  .dd-wrap { min-width: 11rem; position: relative; }
+  .dd-wrap.open { z-index: 40; }
   .dd-btn { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); font-size: 12px; font-weight: 800; }
   .dd-value { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; }
   .dd-arrow { transition: transform 200ms var(--ease-out); }
   .dd-wrap.open .dd-arrow { transform: rotate(180deg); }
-  .seg-pill.dd-list { flex-direction: column; gap: 3px; margin-top: 0; max-height: 0; padding: 0 3px; overflow: hidden; visibility: hidden; border-width: 0;
+  .seg-pill.dd-list, body.theme-glass .seg-pill.dd-list { position: absolute; top: 100%; left: 0; right: 0; background: rgba(22, 24, 30, 0.97) !important; flex-direction: column; gap: 3px; margin-top: 0; max-height: 0; padding: 0 3px; overflow: hidden; visibility: hidden; border-width: 0;
     transition: max-height 220ms var(--ease-out), margin-top 220ms var(--ease-out), padding 220ms var(--ease-out), visibility 0s 220ms; }
   .dd-wrap.open .seg-pill.dd-list { max-height: 18rem; margin-top: 6px; padding: 3px; overflow-y: auto; visibility: visible; border-width: 1px;
     transition: max-height 220ms var(--ease-out), margin-top 220ms var(--ease-out), padding 220ms var(--ease-out), visibility 0s; }
-  .seg-pill.dd-list .seg-option { text-align: left; }
+  .seg-pill.dd-list .seg-option { text-align: left; padding: 9px 14px !important; }
 
   /* Gamepad focus ring for everything outside the card row (settings, modals, sort button) */
   .pad-focus {
@@ -968,22 +970,31 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             SteamGridDB 검색
           </button>
-          <!-- Current box art + image address field (renderLiveSteamGridGallery) -->
-          <!-- Grows into spare height but never below its content -->
-          <div id="steamGridLiveGallery" class="grow shrink-0 basis-auto min-h-[110px] flex flex-col gap-1.5"></div>
+          <button onclick="openSilkArt()" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">Silk Pod</button>
+          <div class="flex gap-1.5">
+            <input id="custArtUrl" type="text" placeholder="이미지 주소" class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/10 border border-white/15 text-[11px] focus:outline-none accent-focus">
+            <button onclick="pasteInto('custArtUrl')" class="px-2 rounded-lg bg-white/10 text-[11px] font-bold">붙여넣기</button>
+          </div>
+          <button onclick="selectCustArt(document.getElementById('custArtUrl').value.trim())" class="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-black">주소 적용</button>
+          <div class="flex-1"></div>
           <div class="flex gap-2">
             <button onclick="saveUniversalCustomizer()" class="flex-1 py-2 rounded-xl bg-white text-black text-xs font-black">저장</button>
           </div>
         </div>
 
+        <div class="flex-1 min-w-0 min-h-0 flex flex-col gap-3">
+          <!-- Fine tune (logo place and size, HERO focus point) next to the current picture -->
+          <div class="flex gap-3 h-[38%] min-h-[150px] flex-shrink-0">
+            <div id="custFineTune" class="flex-1 min-w-0 rounded-2xl bg-black/30 border border-white/5 p-3 overflow-y-auto"></div>
+            <div id="steamGridLiveGallery" class="flex-1 min-w-0 flex flex-col"></div>
+          </div>
         <div class="flex-1 min-w-0 min-h-0 flex flex-col rounded-2xl bg-black/30 border border-white/5 p-3">
-          <!-- 로고 tab only: where this folder/game shows its logo and how big -->
-          <div id="custLogoLayout" class="hidden mb-3"></div>
           <div id="sgdbStatus" class="text-[11px] font-semibold text-white/60 mb-2"></div>
           <!-- Scroll box and grid are separate elements: a height-limited grid squeezes its rows and tiles overlap -->
           <div class="flex-1 min-h-0 overflow-y-auto">
             <div id="sgdbResults" class="grid grid-cols-4 gap-2.5 p-2"></div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -1016,6 +1027,9 @@
             </button>
             <button onclick="switchSettingsSection('sound')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="sound">
               오디오 설정
+            </button>
+            <button onclick="switchSettingsSection('silk')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="silk">
+              Silk Pod
             </button>
             <button onclick="switchSettingsSection('qp')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="qp">
               알림창
@@ -1176,20 +1190,6 @@
             </div>
           </div>
 
-          <!-- SILK POD: COCOON community sound and music packs (public list + download links) -->
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">Silk Pod 팩</h4>
-            <div class="flex items-center gap-2">
-              <div class="seg-pill w-40">
-                <div onclick="setSilkTab('sounds')" id="silkTab_sounds" class="seg-option !px-0">사운드</div>
-                <div onclick="setSilkTab('music')" id="silkTab_music" class="seg-option !px-0">음악</div>
-              </div>
-              <input type="text" id="silkSearch" placeholder="검색" enterkeyhint="search" onkeydown="if (event.key === 'Enter') this.blur()" onchange="renderSilkList()"
-                class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs focus:outline-none accent-focus">
-            </div>
-            <div id="silkStatus" class="text-[11px] text-white/50"></div>
-            <div id="silkList" class="space-y-1.5"></div>
-          </div>
         </div>
 
                 <div id="secAnim" class="settings-section space-y-6 hidden">
@@ -1282,6 +1282,37 @@
           </div>
         </div>
 <!-- SEC API -->
+        <div id="secSilk" class="settings-section space-y-6 hidden">
+          <div>
+            <h3 class="text-lg font-black tracking-tight">Silk Pod</h3>
+          </div>
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="seg-pill w-44">
+                <div onclick="setSilkTab('sounds')" id="silkTab_sounds" class="seg-option">사운드</div>
+                <div onclick="setSilkTab('music')" id="silkTab_music" class="seg-option">음악</div>
+                <div onclick="setSilkTab('icon_overlays')" id="silkTab_icon_overlays" class="seg-option">아이콘 오버레이</div>
+                <div onclick="setSilkTab('smart_folders')" id="silkTab_smart_folders" class="seg-option">폴더 아트</div>
+              </div>
+              <div class="seg-pill w-36">
+                <div onclick="setSilkSort('downloads')" id="silkSort_downloads" class="seg-option">인기순</div>
+                <div onclick="setSilkSort('likes')" id="silkSort_likes" class="seg-option">좋아요순</div>
+                <div onclick="setSilkSort('dateAdded')" id="silkSort_dateAdded" class="seg-option">최신순</div>
+                <div onclick="setSilkSort('dateUpdated')" id="silkSort_dateUpdated" class="seg-option">업데이트순</div>
+              </div>
+              <div class="seg-pill w-32">
+                <div onclick="setSilkView('grid')" id="silkView_grid" class="seg-option">그리드</div>
+                <div onclick="setSilkView('list')" id="silkView_list" class="seg-option">리스트</div>
+              </div>
+              <input type="text" id="silkSearch" placeholder="검색" enterkeyhint="search" onkeydown="if (event.key === 'Enter') this.blur()" onchange="renderSilkList()"
+                class="flex-1 min-w-[8rem] px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs focus:outline-none accent-focus">
+            </div>
+            <div id="silkActive" class="text-[11px] text-white/60 flex items-center gap-2"></div>
+            <div id="silkStatus" class="text-[11px] text-white/50"></div>
+            <div id="silkList"></div>
+          </div>
+        </div>
+
         <div id="secQp" class="settings-section space-y-6 hidden">
           <div>
             <h3 class="text-lg font-black tracking-tight">알림창</h3>
@@ -1400,6 +1431,15 @@
             <div class="flex items-center justify-between py-1.5">
               <span class="text-xs text-white/60">대상 기기</span>
               <span class="text-xs font-bold text-white">AYN Odin 3</span>
+            </div>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">업데이트</h4>
+            <div class="flex items-center gap-3">
+              <button onclick="checkUpdate()" id="updateCheckBtn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">업데이트 확인</button>
+              <span id="updateStatus" class="flex-1 text-xs text-white/70"></span>
+              <button onclick="installUpdate()" id="updateInstallBtn" class="hidden relative overflow-hidden px-4 py-2 rounded-xl accent-bg text-black text-xs font-black">설치</button>
             </div>
           </div>
 
@@ -1738,7 +1778,7 @@
     function renderMainView() {
       const container = document.getElementById('gameCardsContainer');
       const items = getActiveItems();
-      const key = [currentPlatformView, currentLayout, currentCursorStyle, games.length,
+      const key = [currentPlatformView, currentLayout, currentCursorStyle, games.length, overlayPack.id,
         ...items.map(i => i.id + '|' + i.title + '|' + i.boxUrl)].join('\n');
       const rebuilt = key !== renderedCardsKey;
       if (rebuilt) {
@@ -1811,9 +1851,12 @@
             </div>
           `;
         } else {
+          const ov = overlayFor(item);
+          const maskCss = ov && ov.mask ? `-webkit-mask-image:url('${artSrc(ov.mask)}');mask-image:url('${artSrc(ov.mask)}');-webkit-mask-size:100% 100%;mask-size:100% 100%;` : '';
           card.innerHTML = `
             <div class="card-thumb relative rounded-xl overflow-hidden mb-2 bg-black/50">
-              ${artMarkup(item)}
+              <div class="w-full h-full" style="${maskCss}">${artMarkup(item)}</div>
+              ${ov && ov.overlay ? `<img src="${escapeHtml(artSrc(ov.overlay))}" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:3">` : ''}
             </div>
             <div class="px-1">
               <h4 class="text-xs font-bold truncate">${escapeHtml(item.title)}</h4>
@@ -1957,10 +2000,12 @@
           prev.style.transition = 'none';
           prev.classList.remove('hero-fading');
           prev.style.backgroundImage = hero.style.backgroundImage;
+          prev.style.backgroundPosition = hero.style.backgroundPosition;
           prev.classList.toggle('is-fallback', hero.classList.contains('is-fallback'));
           void prev.offsetWidth;
           prev.style.transition = '';
           hero.style.backgroundImage = url ? `url("${url.replace(/"/g, '%22')}")` : 'none';
+          hero.style.backgroundPosition = item.heroUrl && item.heroPos ? `${item.heroPos.x}% ${item.heroPos.y}%` : '';
           hero.classList.toggle('is-fallback', fallback);
           hero.classList.remove('hero-in');
           void hero.offsetWidth;
@@ -2371,6 +2416,7 @@
     };
 
     async function searchSteamGridDB() {
+      silkArtPack = null;
       const term = document.getElementById('custItemTitle').value.trim();
       if (!term) return;
       if (!localStorage.getItem('jindo_sgdb_key')) {
@@ -2425,7 +2471,41 @@
           <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
         </button>`;
     }
+    let silkArtPack = null;   // pack browsed in the editor, null = pack list
+    async function openSilkArt(packId) {
+      silkArtPack = packId || null;
+      lastSgdbResults = null;
+      const status = document.getElementById('sgdbStatus'), grid = document.getElementById('sgdbResults');
+      if (!silkAssets) { status.textContent = '불러오는 중...'; await loadSilk(); }
+      const item = getActiveItems()[currentSelectedIndex];
+      const sys = systemOf(item);
+      if (!silkArtPack) {
+        const packs = (silkAssets || []).filter(a => a.category === 'smart_folders').sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
+        status.textContent = `Silk Pod 폴더 아트 · ${packs.length}개`;
+        grid.innerHTML = packs.slice(0, 60).map(a => `
+          <button onclick="openSilkArt('${escapeHtml(a.id)}')" class="pad-item col-span-2 rounded-xl overflow-hidden bg-black/40 border-2 border-transparent text-left">
+            <img src="${escapeHtml(a.previewImageUrl || '')}" loading="lazy" class="w-full aspect-video object-cover">
+            <div class="px-2 py-1.5 text-[11px] font-bold truncate">${escapeHtml(a.name)}</div>
+          </button>`).join('');
+        return;
+      }
+      status.textContent = '불러오는 중...';
+      const files = await silkPackFiles(silkArtPack);
+      const kind = { box: 'icon', hero: 'hero', logo: 'logo' }[currentCustTab];
+      const url = kind && sys ? silkArtFor(files, sys, kind).replace('PACK_ID_PLACEHOLDER', silkArtPack) : '';
+      const pack = silkAssets.find(a => a.id === silkArtPack);
+      status.textContent = (pack ? pack.name : '') + (url ? '' : ` · ${sys || '플랫폼'} ${kind || ''} 없음`);
+      const back = `<button onclick="openSilkArt()" class="pad-item rounded-xl bg-white/10 text-xs font-bold flex items-center justify-center" style="aspect-ratio:16/9">← 팩 목록</button>`;
+      grid.innerHTML = back + (url ? `
+        <button onclick="applySgdbArt(this)" data-url="${escapeHtml(url)}" data-kind="${currentCustTab}" style="aspect-ratio:${currentCustTab === 'box' ? '2/3' : '16/9'}"
+          class="sgdb-art relative ${currentCustTab === 'box' ? '' : 'col-span-2'} rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
+          <img src="${escapeHtml(url)}" loading="lazy" class="w-full h-full ${currentCustTab === 'logo' ? 'object-contain p-2' : 'object-cover'}">
+        </button>` : '');
+      markAppliedSgdbArt();
+    }
+
     function showArtResults() {
+      if (silkArtPack !== null && document.getElementById('sgdbResults').querySelector('[onclick^="openSilkArt"]')) return openSilkArt(silkArtPack || undefined);
       // 영상 has no SteamGridDB results: just the + tile (mp4 / webm / gif from the device)
       if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
       else document.getElementById('sgdbResults').innerHTML = artAddTile();
@@ -2507,19 +2587,32 @@
       const url = { box: current.boxUrl, logo: current.logoUrl, hero: current.heroUrl, video: current.videoUrl }[currentCustTab] || '';
 
       container.innerHTML = `
-        <div class="relative flex-1 min-h-[64px] rounded-xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-[11px] text-white/40">
+        <div class="relative flex-1 min-h-0 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-[11px] text-white/40">
           ${!url ? '현재 이미지 없음' : isVideoFile(url) ? `<video src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>` : `<img src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain">`}
           ${url ? `<button onclick="selectCustArt('')" class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/70 text-[10px] font-bold text-white">지우기</button>` : ''}
         </div>
-        <div class="flex gap-1.5">
-          <input id="custArtUrl" type="text" placeholder="이미지 주소" class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/10 border border-white/15 text-[11px] focus:outline-none accent-focus">
-          <button onclick="pasteInto('custArtUrl')" class="px-2 rounded-lg bg-white/10 text-[11px] font-bold">붙여넣기</button>
-          <button onclick="selectCustArt(document.getElementById('custArtUrl').value.trim())" class="px-2.5 rounded-lg accent-bg text-black text-[11px] font-black">적용</button>
-        </div>
       `;
-      const logoBox = document.getElementById('custLogoLayout');
-      logoBox.innerHTML = currentCustTab === 'logo' ? logoLayoutControls(current) : '';
-      logoBox.classList.toggle('hidden', currentCustTab !== 'logo');
+      const fine = document.getElementById('custFineTune');
+      fine.innerHTML = currentCustTab === 'logo' ? logoLayoutControls(current) : currentCustTab === 'hero' ? heroFineTune(current) : '';
+      fine.classList.toggle('hidden', !fine.innerHTML);
+    }
+
+    // HERO slot: which part of a wide background stays in view (background-position, per item)
+    function heroFineTune(item) {
+      const pos = item.heroPos || { x: 50, y: 50 };
+      return `
+        <div class="grid grid-cols-[3rem_1fr] items-center gap-x-3 gap-y-3 text-[11px] font-bold">
+          <span class="text-white/60">가로</span><input type="range" min="0" max="100" value="${pos.x}" oninput="setHeroPos('x', +this.value)">
+          <span class="text-white/60">세로</span><input type="range" min="0" max="100" value="${pos.y}" oninput="setHeroPos('y', +this.value)">
+        </div>`;
+    }
+    function setHeroPos(axis, v) {
+      const current = getActiveItems()[currentSelectedIndex];
+      if (!current || current.isAdd) return;
+      current.heroPos = { ...(current.heroPos || { x: 50, y: 50 }), [axis]: v };
+      document.getElementById('heroBg').style.backgroundPosition = `${current.heroPos.x}% ${current.heroPos.y}%`;
+      clearTimeout(setHeroPos.t);
+      setHeroPos.t = setTimeout(saveLibrary, 400);
     }
 
     // 로고 slot: where this item's logo sits over its HERO and how big it is.
@@ -2541,7 +2634,9 @@
         <div class="flex items-center gap-3">
           <span class="flex-shrink-0 text-[11px] font-bold text-white/60">위치</span>
           <div class="grid grid-cols-3 gap-1 p-1 w-36 flex-shrink-0 rounded-lg bg-black/40 border border-white/10">${cells}</div>
-          <span class="flex-shrink-0 text-[11px] font-bold text-white/60 ml-2">크기</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="flex-shrink-0 text-[11px] font-bold text-white/60">크기</span>
           <div class="seg-pill flex-1 !p-0.5">
             ${[['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '최대']].map(([v, text]) => `<div id="itemLogo_size_${v}" onclick="setItemLogoLayout('size', '${v}')"
               class="seg-option !px-0 !py-1 !text-[11px] ${lay.size === v ? 'active' : ''}">${text}</div>`).join('')}
@@ -2955,9 +3050,9 @@
           b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5';
         }
       });
-      const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp', 'backup': 'secBackup' }[secId];
+      const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp', 'backup': 'secBackup', 'silk': 'secSilk' }[secId];
       if (target) document.getElementById(target).classList.remove('hidden');
-      if (secId === 'sound' && !silkAssets) loadSilk();
+      if (secId === 'silk') silkAssets ? renderSilkList() : loadSilk();
       // Font previews and the platform list are built only when their page is opened
       if (secId === 'anim') FONTS.forEach(f => { if (f[2] && f[0] !== 'system') loadGoogleFont(f[2]); });
       if (secId === 'roms') renderPlatformSettings();
@@ -3525,39 +3620,142 @@
       if (!silkAssets) document.getElementById('silkStatus').innerText = '불러오기 실패' + (r.status ? ` (${r.status})` : '');
       renderSilkList();
     }
+    let silkSort = 'downloads', silkView = localStorage.getItem('jindo_silk_view') || 'grid';
     function setSilkTab(tab) {
       silkTab = tab;
       silkShown = 30;
       renderSilkList();
     }
+    function setSilkSort(sort) { silkSort = sort; silkShown = 30; renderSilkList(); }
+    function setSilkView(view) { silkView = view; localStorage.setItem('jindo_silk_view', view); renderSilkList(); }
+    function silkInstalled(tab) {
+      return { sounds: audioPrefs.soundPack, music: audioPrefs.musicPack, icon_overlays: overlayPack.id }[tab] || '';
+    }
     function renderSilkList() {
-      ['sounds', 'music'].forEach(t => document.getElementById('silkTab_' + t).classList.toggle('active', t === silkTab));
+      ['sounds', 'music', 'icon_overlays', 'smart_folders'].forEach(t => document.getElementById('silkTab_' + t).classList.toggle('active', t === silkTab));
+      ['downloads', 'likes', 'dateAdded', 'dateUpdated'].forEach(t => document.getElementById('silkSort_' + t).classList.toggle('active', t === silkSort));
+      ['grid', 'list'].forEach(t => document.getElementById('silkView_' + t).classList.toggle('active', t === silkView));
+      const active = document.getElementById('silkActive');
+      active.innerHTML = silkTab === 'icon_overlays' && overlayPack.id
+        ? `<span>사용 중: <b class="text-white">${escapeHtml(overlayPack.name || overlayPack.id)}</b></span><button onclick="clearOverlayPack()" class="px-2.5 py-1 rounded-lg bg-white/10 font-bold">끄기</button>` : '';
       if (!silkAssets) return;
       const q = document.getElementById('silkSearch').value.trim().toLowerCase();
+      const val = a => silkSort.startsWith('date') ? (a[silkSort] || '') : (a[silkSort] || 0);
       const list = silkAssets.filter(a => a.category === silkTab && (!q || (a.name + ' ' + a.author).toLowerCase().includes(q)))
-        .sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
-      const installed = silkTab === 'sounds' ? audioPrefs.soundPack : audioPrefs.musicPack;
+        .sort((a, b) => val(b) > val(a) ? 1 : val(b) < val(a) ? -1 : 0);
+      const installed = silkInstalled(silkTab);
+      const label = a => silkTab === 'smart_folders' ? '내 폴더에 적용' : installed === a.id ? '적용됨' : '설치';
+      const btn = a => `<button onclick="installSilk('${escapeHtml(a.id)}', this)" class="px-3 py-1.5 rounded-lg ${installed === a.id ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'} text-[11px] font-bold whitespace-nowrap">${label(a)}</button>`;
+      const meta = a => `${escapeHtml(a.author || '')} · ♥ ${(a.likes || 0).toLocaleString()} · ↓ ${(a.downloads || 0).toLocaleString()}`;
+      const thumb = (a, cls) => `<img src="${escapeHtml(a.previewImageUrl || '')}" loading="lazy" class="${cls} object-cover bg-black/40" onerror="this.style.visibility='hidden'">`;
       document.getElementById('silkStatus').innerText = `${list.length}개`;
-      document.getElementById('silkList').innerHTML = list.slice(0, silkShown).map(a => `
-        <div class="flex items-center gap-2.5 text-xs">
-          <img src="${escapeHtml(a.previewImageUrl || '')}" loading="lazy" class="w-10 h-10 rounded-lg object-cover bg-black/40 flex-shrink-0" onerror="this.style.visibility='hidden'">
+      const items = list.slice(0, silkShown).map(a => silkView === 'grid' ? `
+        <div class="rounded-xl bg-black/30 border border-white/10 overflow-hidden flex flex-col">
+          ${thumb(a, 'w-full aspect-video')}
+          <div class="p-2.5 flex flex-col gap-1.5 flex-1">
+            <div class="text-xs font-bold truncate">${escapeHtml(a.name)}</div>
+            <div class="text-[10px] text-white/40 truncate">${meta(a)}</div>
+            <div class="mt-auto">${btn(a)}</div>
+          </div>
+        </div>` : `
+        <div class="flex items-center gap-3 text-xs py-1.5">
+          ${thumb(a, 'w-24 aspect-video rounded-lg flex-shrink-0')}
           <div class="flex-1 min-w-0">
             <div class="font-bold truncate">${escapeHtml(a.name)}</div>
-            <div class="text-[11px] text-white/40 truncate">${escapeHtml(a.author || '')} · ${(a.downloads || 0).toLocaleString()}</div>
+            <div class="text-[11px] text-white/40 truncate">${meta(a)}</div>
           </div>
-          <button onclick="installSilk('${escapeHtml(a.id)}', this)" class="px-3 py-1.5 rounded-lg ${installed === a.id ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'} text-[11px] font-bold">${installed === a.id ? '적용됨' : '설치'}</button>
-        </div>`).join('') + (list.length > silkShown ? `<button onclick="silkShown += 30; renderSilkList()" class="w-full py-2 rounded-xl bg-white/10 text-xs font-bold">더 보기</button>` : '');
+          ${btn(a)}
+        </div>`).join('');
+      document.getElementById('silkList').innerHTML = `<div class="${silkView === 'grid' ? 'grid grid-cols-3 gap-2.5' : 'flex flex-col'}">${items}</div>`
+        + (list.length > silkShown ? `<button onclick="silkShown += 30; renderSilkList()" class="w-full mt-2 py-2 rounded-xl bg-white/10 text-xs font-bold">더 보기</button>` : '');
     }
     async function installSilk(id, btn) {
       if (!/^[\w.-]+$/.test(id)) return;
       btn.innerText = '받는 중...';
+      if (silkTab === 'smart_folders') return applySmartFolderPack(id, btn);
       const r = await nativeJob('installPackFromUrl', `${SILK_API}/assets/${id}/download`, id);
       if (r.error) { btn.innerText = '설치'; return alert('설치 실패: ' + r.error); }
-      applyAudioPack(r, id);
+      if (silkTab === 'icon_overlays') setOverlayPack(id, r.overlays || {});
+      else applyAudioPack(r, id);
       renderSilkList();
     }
 
-    // ===== Fonts: Korean web fonts or a font file from the device =====
+    // ===== Silk Pod folder art (smart_folders packs): files are fetched one by one, no whole-pack download =====
+    const silkFiles = {};
+    async function silkPackFiles(id) {
+      if (!silkFiles[id]) {
+        const r = await nativeJob('httpGet', `${SILK_API}/assets/${id}/files`);
+        try { silkFiles[id] = (JSON.parse(r.body).files || []).map(f => f.path); } catch (e) { silkFiles[id] = []; }
+      }
+      return silkFiles[id];
+    }
+    // A folder's ES-DE system name (switch, n3ds, psvita...): the same ids Silk Pod packs use
+    function systemOf(item) {
+      const folder = currentPlatformView === 'all' ? item : getFolder(item.platform);
+      const pf = folder && platforms.find(x => x.id === folder.system);
+      return pf ? pf.system : '';
+    }
+    function silkArtFor(files, sys, kind) {
+      const f = files.find(path => new RegExp(`by_platform/${sys}/${kind}\\.(png|webp|jpe?g|gif)$`, 'i').test(path));
+      return f ? `${SILK_API}/assets/PACK_ID_PLACEHOLDER/file/${f}` : '';
+    }
+    // Settings > Silk Pod > 폴더 아트 > 내 폴더에 적용: each folder gets the pack's icon / HERO / logo for its platform
+    async function applySmartFolderPack(id, btn) {
+      const files = await silkPackFiles(id);
+      let n = 0;
+      for (const folder of platformFolders) {
+        const pf = platforms.find(x => x.id === folder.system);
+        if (!pf) continue;
+        for (const [kind, field] of [['icon', 'boxUrl'], ['hero', 'heroUrl'], ['logo', 'logoUrl']]) {
+          const url = silkArtFor(files, pf.system, kind).replace('PACK_ID_PLACEHOLDER', id);
+          if (!url) continue;
+          btn.innerText = `${folder.title} ${kind}...`;
+          const stored = await storeArt(url);
+          if (!stored || !(await imageOk(stored))) continue;
+          const old = folder[field];
+          folder[field] = stored;
+          folder.artFrom = { ...(folder.artFrom || {}), [field]: url };
+          releaseArt(old);
+          n++;
+        }
+      }
+      saveLibrary();
+      renderedCardsKey = '';
+      currentHeroUrl = '';
+      renderMainView();
+      btn.innerText = n ? `${n}개 적용됨` : '맞는 폴더 없음';
+    }
+
+    // ===== Icon overlays: a frame/badge drawn over game pictures, per platform (global as fallback) =====
+    let overlayPack = { id: '', name: '', map: {} };
+    try { Object.assign(overlayPack, JSON.parse(localStorage.getItem('jindo_overlay') || '{}')); } catch (e) {}
+    function setOverlayPack(id, map) {
+      const old = overlayPack.id && Object.values(overlayPack.map)[0];
+      const a = silkAssets && silkAssets.find(x => x.id === id);
+      overlayPack = { id, name: a ? a.name : id, map };
+      localStorage.setItem('jindo_overlay', JSON.stringify(overlayPack));
+      if (old && packRoot(old) && packRoot(old) !== packRoot(Object.values(map)[0] || '')) callNative('deleteFile', packRoot(old));
+      renderedCardsKey = '';
+      renderMainView();
+    }
+    function clearOverlayPack() {
+      const old = Object.values(overlayPack.map)[0];
+      if (old && packRoot(old)) callNative('deleteFile', packRoot(old));
+      overlayPack = { id: '', name: '', map: {} };
+      localStorage.removeItem('jindo_overlay');
+      renderedCardsKey = '';
+      renderMainView();
+      renderSilkList();
+    }
+    function overlayFor(item) {
+      if (!overlayPack.id || !item || item.isAdd || currentPlatformView === 'all') return null;
+      const sys = systemOf(item), m = overlayPack.map;
+      const pick = k => m[sys + '/' + k] || m['global/' + k] || '';
+      const mask = pick('mask'), overlay = pick('overlay');
+      return mask || overlay ? { mask, overlay } : null;
+    }
+
+    // ===== Fonts:    // ===== Fonts: Korean web fonts or a font file from the device =====
     const FONTS = [
       ['pretendard', 'Pretendard', ''], ['system', '시스템', 'system-ui, sans-serif'], ['noto', 'Noto Sans KR', 'Noto Sans KR'],
       ['nanum', '나눔고딕', 'Nanum Gothic'], ['gowun', '고운돋움', 'Gowun Dodum'], ['ibm', 'IBM Plex', 'IBM Plex Sans KR'],
@@ -3941,13 +4139,34 @@
       localStorage.setItem('jindo_dock_mode', mode);
     }
 
-    function checkAppUpdates() {
-      const txt = document.getElementById('updateStatusText');
-      if (txt) txt.innerText = '확인 중...';
-      setTimeout(() => {
-        if (txt) txt.innerText = `현재 최신 버전(${APP_VERSION})을 사용 중입니다.`;
-        alert(`현재 최신 버전(${APP_VERSION})입니다.`);
-      }, 600);
+    // GitHub releases (MINI-24/Jindo): newer tag with an APK -> 설치 button; the user decides
+    let updateAsset = null;
+    function versionParts(v) { return String(v || '').replace(/^v/, '').split(/[.-]/).slice(0, 3).map(n => parseInt(n, 10) || 0); }
+    function isNewer(a, b) { const x = versionParts(a), y = versionParts(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return false; }
+    async function checkUpdate() {
+      const status = document.getElementById('updateStatus'), install = document.getElementById('updateInstallBtn');
+      status.textContent = '확인 중...';
+      install.classList.add('hidden');
+      const r = await nativeJob('httpGet', 'https://api.github.com/repos/MINI-24/Jindo/releases/latest');
+      let rel = null;
+      try { rel = JSON.parse(r.body); } catch (e) {}
+      if (!rel || !rel.tag_name) return (status.textContent = '확인 실패' + (r.status ? ` (${r.status})` : ''));
+      updateAsset = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
+      if (isNewer(rel.tag_name, APP_VERSION) && updateAsset) {
+        status.textContent = `${rel.tag_name} 업데이트가 가능해요`;
+        install.classList.remove('hidden');
+      } else status.textContent = `최신 버전이에요 (${APP_VERSION})`;
+    }
+    async function installUpdate() {
+      if (!updateAsset) return;
+      const btn = document.getElementById('updateInstallBtn'), url = updateAsset.browser_download_url;
+      btn.textContent = '받는 중...';
+      const prev = window.onArtProgress;
+      window.onArtProgress = (u, pct) => { if (u === url) btn.textContent = pct + '%'; else if (prev) prev(u, pct); };
+      const r = await nativeJob('installUpdate', url);
+      window.onArtProgress = prev;
+      btn.textContent = r.error ? '다시 시도' : '설치';
+      if (r.error) document.getElementById('updateStatus').textContent = '실패: ' + r.error;
     }
 
     function toggleDockAutoHide(enabled) {
@@ -4173,33 +4392,6 @@
       logText.innerText = lines.join('\n');
     }
 
-    // UPDATES
-    function checkForUpdates() {
-      const btn = document.getElementById('btnCheckUpdate');
-      btn.disabled = true;
-      btn.innerHTML = '<span>확인 중...</span>';
-      
-      fetch('https://api.github.com/repos/MINI-24/Jindo/releases/latest')
-        .then(res => res.json())
-        .then(data => {
-          btn.disabled = false;
-          const tag = (data && data.tag_name) ? data.tag_name : APP_VERSION;
-          btn.innerHTML = '<span>✓ 최신 버전 (' + tag + ')</span>';
-          btn.classList.add('bg-emerald-400');
-          setTimeout(() => {
-            btn.innerHTML = '<span>업데이트 확인</span>';
-            btn.classList.remove('bg-emerald-400');
-          }, 3000);
-        })
-        .catch(err => {
-          btn.disabled = false;
-          btn.innerHTML = '<span>✓ 최신 버전입니다</span>';
-        });
-    }
-
-    function toggleAutoUpdate(enabled) {
-      console.log('Auto update set to:', enabled);
-    }
 
     
     // ================= REAL ANDROID NATIVE BRIDGE INTEGRATION =================

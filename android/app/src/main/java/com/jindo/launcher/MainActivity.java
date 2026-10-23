@@ -229,6 +229,7 @@ public class MainActivity extends BridgeActivity {
         deleteTree(root);
         JSONObject sounds = new JSONObject();
         JSONArray music = new JSONArray();
+        JSONObject overlays = new JSONObject();
         String meta = "";
         long total = 0;
         try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(new java.io.FileInputStream(zip))) {
@@ -242,6 +243,16 @@ public class MainActivity extends BridgeActivity {
                 parent = parent.substring(parent.lastIndexOf('/') + 1);
                 boolean audio = path.matches(".*\\.(mp3|ogg|wav|m4a|flac|aac|opus)$");
                 String kind = !audio ? null : "sounds".equals(parent) ? "sounds" : "music".equals(parent) ? "music" : null;
+                // Icon overlay packs: .../icon_overlays/<platform or global>/(mask|overlay).png
+                if (kind == null && path.contains("/icon_overlays/") && path.matches(".*/(mask|overlay)\\.(png|webp)$")) {
+                    File dir = new File(new File(root, "overlays"), safeName(parent));
+                    dir.mkdirs();
+                    File out = new File(dir, safeName(base));
+                    copy(zin, out);
+                    total += out.length();
+                    overlays.put(parent + "/" + base.substring(0, base.lastIndexOf('.')), out.getAbsolutePath());
+                    continue;
+                }
                 if (kind == null) {
                     if (base.equals("metadata.json") || base.equals("theme.json")) {
                         ByteArrayOutputStream b = new ByteArrayOutputStream();
@@ -266,7 +277,7 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         }
-        return new JSONObject().put("packId", safeName(packId)).put("sounds", sounds).put("music", music).put("meta", meta);
+        return new JSONObject().put("packId", safeName(packId)).put("sounds", sounds).put("music", music).put("overlays", overlays).put("meta", meta);
     }
 
     // Pictures larger than the screen are scaled down in place (pictures with transparency stay PNG,
@@ -975,6 +986,52 @@ public class MainActivity extends BridgeActivity {
                 int amp = v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE;
                 v.vibrate(android.os.VibrationEffect.createOneShot(Math.max(1, Math.min(200, ms)), amp));
             } catch (Exception ignored) {}
+        }
+
+        // Update: downloads the APK (progress via window.onArtProgress(url, %)) and opens Android's installer,
+        // which asks the user to confirm. Result via window.onNativeJob.
+        @JavascriptInterface
+        public void installUpdate(final String id, final String url) {
+            final MainActivity activity = (MainActivity) context;
+            new Thread(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    if (!url.startsWith("https://")) throw new Exception("https 주소만 받아요");
+                    File apk = new File(activity.getCacheDir(), "jindo-update.apk");
+                    conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(60000);
+                    conn.setRequestProperty("User-Agent", "Jindo-Launcher");
+                    if (conn.getResponseCode() >= 400) throw new Exception("다운로드 실패 (" + conn.getResponseCode() + ")");
+                    final long total = conn.getContentLengthLong();
+                    final WebView web = activity.getBridge().getWebView();
+                    try (InputStream in = conn.getInputStream(); java.io.OutputStream o = new java.io.FileOutputStream(apk)) {
+                        byte[] buf = new byte[65536];
+                        long done = 0;
+                        int n, sent = -1;
+                        while ((n = in.read(buf)) > 0) {
+                            o.write(buf, 0, n);
+                            done += n;
+                            int pct = total > 0 ? (int) (done * 100 / total) : -1;
+                            if (pct >= 0 && pct - sent >= 3) {
+                                sent = pct;
+                                final String js = "window.onArtProgress && window.onArtProgress(" + JSONObject.quote(url) + "," + pct + ");";
+                                web.post(() -> web.evaluateJavascript(js, null));
+                            }
+                        }
+                    }
+                    Uri uri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".fileprovider", apk);
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    activity.startActivity(intent);
+                    activity.notifyJob(id, "{\"ok\":true}");
+                } catch (Exception e) {
+                    activity.notifyJob(id, "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            }).start();
         }
 
         @JavascriptInterface
