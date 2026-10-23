@@ -966,6 +966,17 @@ public class MainActivity extends BridgeActivity {
             ((MainActivity) context).importBackup(id);
         }
 
+        // Short buzz for button presses; strength 1-255 (the Odin 3 motor supports amplitude control)
+        @JavascriptInterface
+        public void vibrate(int ms, int strength) {
+            try {
+                android.os.Vibrator v = (android.os.Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+                if (v == null || !v.hasVibrator()) return;
+                int amp = v.hasAmplitudeControl() ? Math.max(1, Math.min(255, strength)) : android.os.VibrationEffect.DEFAULT_AMPLITUDE;
+                v.vibrate(android.os.VibrationEffect.createOneShot(Math.max(1, Math.min(200, ms)), amp));
+            } catch (Exception ignored) {}
+        }
+
         @JavascriptInterface
         public void pickFolder() {
             ((MainActivity) context).pickFolder();

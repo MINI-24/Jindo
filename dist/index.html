@@ -633,6 +633,7 @@
 
   /* Hero: crossfade layer + title swap */
   #heroBg { transition: none; }
+  .hero-warm { opacity: 0.01; }
   #heroBgPrev { opacity: 0.8; transition: opacity var(--dur-slow) ease; }
   #heroBgPrev.hero-fading { opacity: 0; }
   /* New background eases in from a slight zoom */
@@ -772,6 +773,9 @@
 
   <!-- ================= DYNAMIC BACKGROUND HERO ================= -->
   <div class="fixed inset-0 overflow-hidden pointer-events-none z-0" id="heroWrapper">
+    <!-- Neighbours' backgrounds, painted almost invisibly so their pictures are decoded and on the GPU before they are selected -->
+    <div id="heroWarm0" class="hero-warm absolute inset-0 bg-cover bg-center"></div>
+    <div id="heroWarm1" class="hero-warm absolute inset-0 bg-cover bg-center"></div>
     <div id="heroBg" class="w-full h-full bg-cover bg-center opacity-80"></div>
     <div id="heroBgPrev" class="absolute inset-0 bg-cover bg-center hero-fading"></div>
     <video id="heroVideo" class="hero-preview absolute inset-0 w-full h-full object-cover" loop muted playsinline></video>
@@ -1106,6 +1110,18 @@
             <div id="sfxPackLabel" class="text-[11px] text-white/50"></div>
             <button onclick="toggleSfxList()" id="sfxListToggle" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">개별 효과음 ▾</button>
             <div id="sfxList" class="space-y-1.5 hidden"></div>
+          </div>
+
+          <!-- VIBRATION: a short buzz on presses, like a game console -->
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">진동</h4>
+            <div class="flex items-center gap-3">
+              <div class="seg-pill w-40">
+                <div onclick="setAudioOption('vibeOn', true)" id="vibeOn_true" class="seg-option !px-0">켜기</div>
+                <div onclick="setAudioOption('vibeOn', false)" id="vibeOn_false" class="seg-option !px-0">끄기</div>
+              </div>
+              <input type="range" id="vibeStrength" min="5" max="100" oninput="setAudioOption('vibeStrength', this.value / 100)" class="flex-1">
+            </div>
           </div>
 
           <!-- BACKGROUND MUSIC: a playlist of files kept in app storage -->
@@ -1706,7 +1722,14 @@
       document.getElementById('bottomDock').classList.toggle('active-peek', isDockFocused);
       // After a rebuild (new order, new games) the old scroll offset no longer matches the focused card
       if (rebuilt) scrollCardIntoView(currentSelectedIndex, true);
-      updateHeroView(items[currentSelectedIndex] || items[0]);
+      // While the selection races (held key, quick taps) the background waits until it settles:
+      // swapping a full-screen picture on every step was the remaining source of dropped frames
+      const heroItem = items[currentSelectedIndex] || items[0];
+      const now = performance.now(), racing = now - lastHeroRender < 160;
+      lastHeroRender = now;
+      clearTimeout(heroSettleTimer);
+      if (racing) heroSettleTimer = setTimeout(() => updateHeroView(getActiveItems()[currentSelectedIndex] || heroItem), 170);
+      else updateHeroView(heroItem);
       renderJindoDock();
     }
 
@@ -1786,6 +1809,8 @@
         container.appendChild(spacer);
       }
       layoutCards();
+      // Decode every card picture up front (off the main thread) so the first pass through a folder doesn't stutter
+      container.querySelectorAll('img.card-art').forEach(img => img.decode && img.decode().catch(() => {}));
     }
 
     // The cards take the lower part of the free height (the rest shows the selected game's HERO art),
@@ -1861,6 +1886,7 @@
     }
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopHeroPreview(); });
 
+    let lastHeroRender = 0, heroSettleTimer = null;
     function updateHeroView(item) {
       if (!item) return;
       if (heroPreviewItem !== item) { heroPreviewItem = item; scheduleHeroPreview(item); }
@@ -1907,8 +1933,21 @@
           void hero.offsetWidth;
           hero.classList.add('hero-in');
           requestAnimationFrame(() => prev.classList.add('hero-fading'));
+          // Next and previous item: decoding a 1920 px background took 35-50 ms in the frame it appeared
+          requestAnimationFrame(warmNeighbourHeroes);
         });
       }
+    }
+
+    function warmNeighbourHeroes() {
+      const items = getActiveItems(), n = items.length;
+      [1, -1].forEach((d, i) => {
+        const it = n > 1 ? items[(currentSelectedIndex + d + n) % n] : null;
+        const url = it && it.heroUrl ? artSrc(it.heroUrl) : '';
+        const el = document.getElementById('heroWarm' + i);
+        const css = url ? `url("${url.replace(/"/g, '%22')}")` : 'none';
+        if (el.style.backgroundImage !== css) el.style.backgroundImage = css;
+      });
     }
 
     function selectItem(idx, repeat = false) {
@@ -1952,9 +1991,14 @@
       const h = parseFloat(container.style.getPropertyValue('--thumb-h')) || 180;
       const scaleAt = a => a === 0 ? 1 : Math.max(0.38, 0.66 - (a - 1) * 0.12);
       const GAP = 14;
-      // Room under the selected picture for its name: the name's real height (1 or 2 lines)
-      const nameEl = container.querySelector('.liquid-glass-card.focused > div:last-of-type');
-      const NAME = (nameEl ? nameEl.offsetHeight : 28) + 10;
+      // Room under the selected picture for its name: the name's real height (1 or 2 lines),
+      // measured once per card (reading it on every press forced a layout and cost frames)
+      const focused = container.children[currentSelectedIndex];
+      if (focused && focused._nameH === undefined) {
+        const nameEl = focused.querySelector(':scope > div:last-of-type');
+        focused._nameH = nameEl ? nameEl.offsetHeight : 28;
+      }
+      const NAME = (focused && focused._nameH || 28) + 10;
       [...container.children].forEach((card, i) => {
         const d = i - currentSelectedIndex, a = Math.abs(d);
         let y = 0;
@@ -1962,15 +2006,20 @@
         if (d > 0) y += NAME;   // the whole wheel is lifted by half a name so picture + name stay centred
         y *= Math.sign(d);
         const x = Math.max(0, 8 - a * a * 4);
+        // Only cards whose place changes are touched; far ones (hidden) stay as they are
+        const key = (a > 3 ? 'far' + Math.sign(d) : d + '|' + NAME) + '|' + h;
+        if (card._wheel === key) return;
+        card._wheel = key;
         card.style.setProperty('--wheel', `translate(${x}px, calc(-50% + ${Math.round(y - NAME / 2)}px)) scale(${scaleAt(a)})`);
         card.style.setProperty('--wheel-o', a === 0 ? 1 : a > 3 ? 0 : 0.55 - (a - 1) * 0.18);
         card.style.zIndex = 10 - Math.min(a, 9);
-        card.style.visibility = a > 3 ? 'hidden' : '';
+        // Far cards are only transparent (not hidden), so their pictures stay decoded for when they come back
+        card.style.pointerEvents = a > 3 ? 'none' : '';
       });
     }
 
     function scrollCardIntoView(idx, instant, fast = false) {
-      if (currentLayout === 'list') return positionWheel();
+      if (currentLayout === 'list') return;   // renderMainView already turned the wheel
       const viewport = document.getElementById('gameCardsViewport');
       const card = document.getElementById('gameCardsContainer').children[idx];
       if (!card) return;
@@ -3132,7 +3181,7 @@
       ['slider_increase', '슬라이더 올림'], ['slider_decrease', '슬라이더 내림'], ['grid_zoom_in', '레이아웃 크게'],
       ['grid_zoom_out', '레이아웃 작게'], ['error', '오류']
     ];
-    const audioPrefs = { sfxOn: true, sfxVolume: 0.6, sounds: {}, soundPack: '', musicOn: true, musicVolume: 0.4, tracks: [], shuffle: false, musicPack: '' };
+    const audioPrefs = { vibeOn: true, vibeStrength: 0.5, sfxOn: true, sfxVolume: 0.6, sounds: {}, soundPack: '', musicOn: true, musicVolume: 0.4, tracks: [], shuffle: false, musicPack: '' };
     try { Object.assign(audioPrefs, JSON.parse(localStorage.getItem('jindo_audio') || '{}')); } catch (e) {}
     const saveAudio = () => localStorage.setItem('jindo_audio', JSON.stringify(audioPrefs));
 
@@ -3178,6 +3227,14 @@
         sfxBuffers[name] = fetch(fileUrl(path)).then(r => r.arrayBuffer()).then(b => sfxContext().decodeAudioData(b)).catch(() => null);
       }
       return sfxBuffers[name];
+    }
+
+    // Press feel: moving is a light tick, confirming a firmer tap, launching a longer one
+    const BUZZ = { navigate: [14, 0.55], slider_increase: [10, 0.45], slider_decrease: [10, 0.45], launch: [45, 1], error: [60, 1] };
+    function buzz(name, force) {
+      if ((!audioPrefs.vibeOn && !force) || !name) return;
+      const [ms, k] = BUZZ[name] || [22, 0.85];
+      callNative('vibrate', ms, Math.round(255 * audioPrefs.vibeStrength * k));
     }
 
     function playSfx(name, force) {
@@ -3253,13 +3310,14 @@
       if (key === 'musicVolume') audio.volume = value;
       if (key === 'musicOn') value ? playTrack(trackIndex) : (audio.pause(), updateBgmWidget());
       if (key === 'sfxVolume' && !keySound) playSfx('navigate');
+      if (key === 'vibeStrength' || (key === 'vibeOn' && value)) buzz('select', true);
       renderAudioSettings();
     }
 
     function renderAudioSettings() {
-      ['sfxOn', 'musicOn', 'shuffle'].forEach(k => [true, false].forEach(v =>
+      ['sfxOn', 'musicOn', 'shuffle', 'vibeOn'].forEach(k => [true, false].forEach(v =>
         document.getElementById(k + '_' + v).classList.toggle('active', audioPrefs[k] === v)));
-      ['sfxVolume', 'musicVolume'].forEach(k => {
+      ['sfxVolume', 'musicVolume', 'vibeStrength'].forEach(k => {
         const el = document.getElementById(k);
         el.value = Math.round(audioPrefs[k] * 100);
         if (typeof setRangeFill === 'function') setRangeFill(el);
@@ -3485,6 +3543,7 @@
       }
       setKeySound('launch');
       playSfx('launch');
+      buzz('launch');
       keySound = null;
       document.getElementById('bgmAudio').pause();
       stopHeroPreview();
@@ -4395,6 +4454,7 @@
       } finally {
         padKeyActive = false;
         playSfx(keySound);
+        buzz(keySound);
         keySound = null;
       }
     };
