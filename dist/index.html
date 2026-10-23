@@ -449,7 +449,26 @@
   body.dock-collapsed #mainArea { padding-bottom: 0.5rem; }
 
   /* Volume sliders follow the highlight color */
-  #secSound input[type=range] { accent-color: var(--accent-glow); }
+  /* Settings sliders: a slim glass track filled with the highlight colour (--fill from setRangeFill), round thumb */
+  #settingsModal input[type=range]:not(.color-range) {
+    -webkit-appearance: none; appearance: none; height: 28px; background: transparent; cursor: pointer; outline-offset: 4px;
+  }
+  #settingsModal input[type=range]:not(.color-range)::-webkit-slider-runnable-track {
+    height: 8px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent-glow) 0 var(--fill, 50%), rgba(255, 255, 255, 0.14) var(--fill, 50%) 100%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  #settingsModal input[type=range]:not(.color-range)::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 22px; height: 22px; margin-top: -7px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff 0%, #e8ecf3 60%, #cfd6e2 100%);
+    border: 2px solid var(--accent-glow);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(255, 255, 255, 0.06);
+    transition: transform 160ms var(--ease-out);
+  }
+  #settingsModal input[type=range]:not(.color-range):active::-webkit-slider-thumb,
+  #settingsModal input[type=range].pad-focus::-webkit-slider-thumb { transform: scale(1.18); }
+  /* Colour sliders keep their colour tracks, with the same thumb */
+  #settingsModal .color-range::-webkit-slider-thumb { border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
 
   .card-art { opacity: 0; }
   .card-art.art-loaded, div.card-art { opacity: 1; }
@@ -1090,6 +1109,16 @@
             <div class="seg-pill">
               <div onclick="setHeroStylePill('vignette')" id="heroPillVignette" class="seg-option active">비네트</div>
               <div onclick="setHeroStylePill('fullscreen')" id="heroPillFullscreen" class="seg-option">원본</div>
+            </div>
+          </div>
+
+          <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
+            <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
+            <div class="flex gap-2">
+              <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
+              <button onclick="setDefaultBg('')" id="defaultBgClear" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">지우기</button>
             </div>
           </div>
         </div>
@@ -1907,8 +1936,10 @@
         }
       }
 
-      const url = artSrc(item.heroUrl || item.boxUrl || '');
-      const fallback = !item.heroUrl && !!item.boxUrl;
+      // No HERO of its own: the default background from Settings, else the blurred box art
+      const def = !item.heroUrl && localStorage.getItem('jindo_default_bg');
+      const url = artSrc(item.heroUrl || def || item.boxUrl || '');
+      const fallback = !item.heroUrl && !def && !!item.boxUrl;
       if (url !== currentHeroUrl) {
         currentHeroUrl = url;
         // Preload, then crossfade: the old image sits on a veil layer and fades out over the new one.
@@ -1939,6 +1970,27 @@
           requestAnimationFrame(warmNeighbourHeroes);
         });
       }
+    }
+
+    function renderDefaultBg() {
+      const path = localStorage.getItem('jindo_default_bg') || '';
+      document.getElementById('defaultBgPreview').style.backgroundImage = path ? `url("${artSrc(path)}")` : 'none';
+      document.getElementById('defaultBgClear').classList.toggle('hidden', !path);
+    }
+    function setDefaultBg(path) {
+      const old = localStorage.getItem('jindo_default_bg');
+      if (old && old !== path) callNative('deleteFile', old);
+      if (path) localStorage.setItem('jindo_default_bg', path); else localStorage.removeItem('jindo_default_bg');
+      renderDefaultBg();
+      currentHeroUrl = '';
+      renderMainView();
+    }
+    async function pickDefaultBg() {
+      const r = await nativeJob('pickFile', 'image/*', 'art');
+      if (r.error) return alert(r.error);
+      if (!r.path) return;
+      if (!(await imageOk(r.path))) { callNative('deleteFile', r.path); return alert('이미지를 읽을 수 없어요.'); }
+      setDefaultBg(r.path);
     }
 
     function warmNeighbourHeroes() {
@@ -4643,6 +4695,11 @@
       // Dark / light were dropped: liquid glass is the look, tuned in Settings
       setThemeMode('glass');
       applyGlass();
+      renderDefaultBg();
+      // Every settings slider shows its filled part while dragging and when shown
+      const settingsEl = document.getElementById('settingsModal');
+      settingsEl.addEventListener('input', e => { if (e.target.type === 'range' && !e.target.classList.contains('color-range')) setRangeFill(e.target); });
+      settingsEl.querySelectorAll('input[type=range]:not(.color-range)').forEach(setRangeFill);
       const savedDock = localStorage.getItem('jindo_dock_mode') || 'visible';
       setDockMode(savedDock);
       setLayout(localStorage.getItem('jindo_layout') || 'horizontal');
