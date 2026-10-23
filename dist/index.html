@@ -3230,11 +3230,14 @@
     }
 
     // Press feel: moving is a light tick, confirming a firmer tap, launching a longer one
-    const BUZZ = { navigate: [14, 0.55], slider_increase: [10, 0.45], slider_decrease: [10, 0.45], launch: [45, 1], error: [60, 1] };
+    // [ms at full strength, share of full power]. The motor needs ~25 ms to spin up, so strength
+    // raises both power and length; at the top every press runs the motor at full power.
+    const BUZZ = { navigate: [40, 0.85], slider_increase: [30, 0.75], slider_decrease: [30, 0.75], launch: [110, 1], error: [120, 1] };
     function buzz(name, force) {
       if ((!audioPrefs.vibeOn && !force) || !name) return;
-      const [ms, k] = BUZZ[name] || [22, 0.85];
-      callNative('vibrate', ms, Math.round(255 * audioPrefs.vibeStrength * k));
+      const [ms, k] = BUZZ[name] || [60, 1];
+      const st = audioPrefs.vibeStrength;
+      callNative('vibrate', Math.round(ms * (0.45 + 0.55 * st)), Math.round(255 * Math.min(1, st * k + (st >= 0.95 ? 1 : 0))));
     }
 
     function playSfx(name, force) {
