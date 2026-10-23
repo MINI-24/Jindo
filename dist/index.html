@@ -1013,34 +1013,34 @@
           </div>
 
           <nav class="space-y-1.5" id="settingsNav">
-            <button onclick="switchSettingsSection('icons')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-white/20 flex items-center gap-2.5" data-sec="icons">
+            <button onclick="switchSettingsSection('icons')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold bg-white/20 flex items-center gap-2.5" data-sec="icons">
               화면 및 내비게이션
             </button>
-            <button onclick="switchSettingsSection('hero')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="hero">
+            <button onclick="switchSettingsSection('hero')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="hero">
               배경 및 정보 표시
             </button>
-            <button onclick="switchSettingsSection('anim')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="anim">
+            <button onclick="switchSettingsSection('anim')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="anim">
               테마 및 색상
             </button>
-            <button onclick="switchSettingsSection('roms')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="roms">
+            <button onclick="switchSettingsSection('roms')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="roms">
               플랫폼 및 게임 경로
             </button>
-            <button onclick="switchSettingsSection('sound')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="sound">
+            <button onclick="switchSettingsSection('sound')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="sound">
               오디오 설정
             </button>
-            <button onclick="switchSettingsSection('silk')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="silk">
+            <button onclick="switchSettingsSection('silk')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="silk">
               Silk Pod
             </button>
-            <button onclick="switchSettingsSection('qp')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="qp">
+            <button onclick="switchSettingsSection('qp')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="qp">
               알림창
             </button>
-            <button onclick="switchSettingsSection('api')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="api">
+            <button onclick="switchSettingsSection('api')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="api">
               게임 아트 설정
             </button>
-            <button onclick="switchSettingsSection('backup')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="backup">
+            <button onclick="switchSettingsSection('backup')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="backup">
               백업 및 복원
             </button>
-            <button onclick="switchSettingsSection('about')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5" data-sec="about">
+            <button onclick="switchSettingsSection('about')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5" data-sec="about">
               기기 정보 및 업데이트
             </button>
           </nav>
@@ -3012,16 +3012,9 @@
         const btns = settingsNavButtons();
         if (key === 'ArrowDown' || key === 'ArrowUp') {
           settingsNavIdx = (settingsNavIdx + (key === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length;
-          // While the key is held only the focus ring moves; the page opens once it settles
-          const fast = performance.now() - (handleSettingsKey.navT || 0) < 200;
-          handleSettingsKey.navT = performance.now();
-          clearTimeout(handleSettingsKey.navOpen);
-          const btn = btns[settingsNavIdx];
-          if (fast) handleSettingsKey.navOpen = setTimeout(() => { handleSettingsKey.navOpen = null; btn.click(); }, 150);
-          else btn.click();
+          btns[settingsNavIdx].click();
         } else if (key === 'ArrowRight' || key === 'A') {
-          // A page still waiting to open opens now, before focus enters it
-          if (handleSettingsKey.navOpen) { clearTimeout(handleSettingsKey.navOpen); handleSettingsKey.navOpen = null; btns[settingsNavIdx].click(); }
+          if (switchSettingsSection.roms) { clearTimeout(switchSettingsSection.roms); switchSettingsSection.roms = 0; renderPlatformSettings(); }
           if (settingsItems().length) {
             settingsZone = 'content';
             settingsItemIdx = 0;
@@ -3058,9 +3051,9 @@
       document.querySelectorAll('.settings-section').forEach(s => s.classList.add('hidden'));
       document.querySelectorAll('.settings-nav-btn').forEach(b => {
         if (b.getAttribute('data-sec') === secId) {
-          b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all bg-white/20 flex items-center gap-2.5';
+          b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold bg-white/20 flex items-center gap-2.5';
         } else {
-          b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white transition-all flex items-center gap-2.5';
+          b.className = 'settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white flex items-center gap-2.5';
         }
       });
       const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp', 'backup': 'secBackup', 'silk': 'secSilk' }[secId];
@@ -3068,7 +3061,14 @@
       if (secId === 'silk') silkAssets ? renderSilkList() : loadSilk();
       // Font previews and the platform list are built only when their page is opened
       if (secId === 'anim') FONTS.forEach(f => { if (f[2] && f[0] !== 'system') loadGoogleFont(f[2]); });
-      if (secId === 'roms') renderPlatformSettings();
+      // The platform list is the one slow page (~40 ms): while the menu key is held it waits until the key settles
+      clearTimeout(switchSettingsSection.roms); switchSettingsSection.roms = 0;
+      const held = performance.now() - (switchSettingsSection.t || 0) < 200;
+      switchSettingsSection.t = performance.now();
+      if (secId === 'roms') {
+        if (held) switchSettingsSection.roms = setTimeout(() => { switchSettingsSection.roms = 0; renderPlatformSettings(); }, 150);
+        else renderPlatformSettings();
+      }
     }
 
     const LAYOUT_NAMES = { horizontal: '가로', grid2: '2행', grid3: '3행', list: '세로 목록' };
