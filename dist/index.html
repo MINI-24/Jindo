@@ -704,6 +704,13 @@
   .icon-btn:hover { background: rgba(255, 255, 255, 0.2); }
   .icon-btn:active { transform: scale(0.92); }
   .icon-btn.primary { background: var(--accent-glow); color: #0b0d12; border-color: transparent; }
+  /* On / off: an empty ring, filled with the accent colour when on */
+  .ring-toggle { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); }
+  .ring-toggle::before { content: ''; width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); transition: background-color 160ms ease, border-color 160ms ease; }
+  .ring-toggle.on::before { background: var(--accent-glow); border-color: var(--accent-glow); }
+  .icon-btn.sm, .ring-toggle.sm { width: 32px; height: 32px; border-radius: 10px; }
+  .ring-toggle.sm::before { width: 14px; height: 14px; }
   /* Icon toggle: one button, lit (accent) when on, its off icon when off */
   .icon-toggle { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center;
     background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); color: rgba(255, 255, 255, 0.55);
@@ -1003,19 +1010,14 @@
         <!-- If height runs short the column scrolls instead of letting controls overlap -->
         <div class="w-56 flex-shrink-0 flex flex-col gap-2 min-h-0 overflow-y-auto p-1.5 -m-1.5">
           <input type="text" id="custItemTitle" enterkeyhint="search" onkeydown="if (event.key === 'Enter') { this.blur(); searchSteamGridDB(); }" class="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs font-bold focus:outline-none accent-focus">
-          <button onclick="searchSteamGridDB()" class="w-full py-2 rounded-xl accent-bg hover:brightness-110 text-black text-xs font-black flex items-center justify-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            SteamGridDB 검색
-          </button>
-          <button onclick="openSilkArt()" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">Silk Pod</button>
+          <div class="flex gap-1.5">
+            <button onclick="searchSteamGridDB()" title="SteamGridDB 검색" class="icon-btn primary flex-1"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+            <button onclick="openSilkArt()" title="내 Silk Pod" class="icon-btn flex-1"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 19V5M9 19V5M14 19l-2-14M19 19l-4-13"/></svg></button>
+          </div>
           <div class="flex gap-1.5">
             <input id="custArtUrl" type="text" placeholder="이미지 주소" class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/10 border border-white/15 text-[11px] focus:outline-none accent-focus">
-            <button onclick="pasteInto('custArtUrl')" class="px-2 rounded-lg bg-white/10 text-[11px] font-bold">붙여넣기</button>
-          </div>
-          <button onclick="selectCustArt(document.getElementById('custArtUrl').value.trim())" class="w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-black">주소 적용</button>
-          <div class="flex-1"></div>
-          <div class="flex gap-2">
-            <button onclick="saveUniversalCustomizer()" class="flex-1 py-2 rounded-xl bg-white text-black text-xs font-black">저장</button>
+            <button onclick="pasteInto('custArtUrl')" title="붙여넣기" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg></button>
+            <button onclick="selectCustArt(document.getElementById('custArtUrl').value.trim())" title="주소 적용" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/></svg></button>
           </div>
         </div>
 
@@ -1266,8 +1268,8 @@
                 <span id="customColorPreview" class="w-7 h-7 rounded-full border-2 border-white/60" style="background: var(--accent-glow)"></span>
                 <div class="flex gap-2 ml-auto">
                   <input type="text" id="customColorHex" maxlength="7" placeholder="#ff7a00" class="w-28 px-3 py-1.5 rounded-xl bg-black/60 border border-white/15 text-xs font-mono text-white accent-focus focus:outline-none">
-                  <button onclick="pasteInto('customColorHex')" class="px-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">붙여넣기</button>
-                  <button onclick="applyCustomHex()" class="px-4 rounded-xl accent-bg text-xs font-black">적용</button>
+                  <button onclick="pasteInto('customColorHex')" title="붙여넣기" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg></button>
+                  <button onclick="applyCustomHex()" title="적용" class="icon-btn primary"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/></svg></button>
                 </div>
               </div>
               <div class="grid grid-cols-[3.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-[11px] font-bold text-white/70">
@@ -1398,14 +1400,10 @@
             <p class="text-[11px] text-white/60">steamgriddb.com 로그인 → Preferences → API에서 무료로 발급받을 수 있어요.</p>
             <div class="flex gap-2">
               <input type="password" id="inputSteamApiKey" placeholder="API 키를 입력하세요" class="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-black/60 border border-white/15 text-xs text-white font-mono accent-focus focus:outline-none" />
-              <button onclick="pasteInto('inputSteamApiKey')" class="px-4 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">붙여넣기</button>
+              <button onclick="pasteInto('inputSteamApiKey')" title="붙여넣기" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg></button>
+              <button onclick="saveSteamApiKey()" title="API 키 저장" class="icon-btn primary"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg></button>
             </div>
-            <div class="flex items-center gap-3">
-              <button onclick="saveSteamApiKey()" class="px-5 py-2.5 rounded-xl accent-bg hover:brightness-110 text-black text-xs font-bold transition-all whitespace-nowrap">
-                API 키 저장
-              </button>
-              <span id="sgdbKeyStatus" class="text-[11px] text-white/60"></span>
-            </div>
+            <span id="sgdbKeyStatus" class="block text-[11px] text-white/60"></span>
           </div>
         </div>
 
@@ -2085,7 +2083,7 @@
         const img = new Image();
         img.src = url;
         decodedCache.set(url, img.decode().catch(() => {}).then(() => img));
-        if (decodedCache.size > 12) decodedCache.delete(decodedCache.keys().next().value);
+        if (decodedCache.size > 80) decodedCache.delete(decodedCache.keys().next().value);
       }
       return decodedCache.get(url);
     }
@@ -2528,15 +2526,23 @@
       silkArtPack = packId || null;
       lastSgdbResults = null;
       const status = document.getElementById('sgdbStatus'), grid = document.getElementById('sgdbResults');
-      if (!silkAssets) { status.textContent = '불러오는 중...'; await loadSilk(); }
       const item = getActiveItems()[currentSelectedIndex];
       const sys = systemOf(item);
       if (!silkArtPack) {
         const packs = silkLib.filter(x => x.category === 'smart_folders');
-        status.textContent = packs.length ? `설치한 폴더 아트 · ${packs.length}개` : '설치한 폴더 아트가 없어요. 설정 > Silk Pod > 폴더 아트에서 설치하세요.';
-        grid.innerHTML = packs.map(a => `
+        const overlays = silkLib.filter(x => x.category === 'icon_overlays');
+        const folder = editorFolder(), cur = folder ? folderOverlayId(folder) : '';
+        status.textContent = packs.length || overlays.length ? '내 Silk Pod' : '설치한 Silk Pod이 없어요. 설정 > Silk Pod에서 받아주세요.';
+        // Overlay for this folder: one row per installed pack, filled ring = in use here
+        grid.innerHTML = (folder && overlays.length ? `<div class="col-span-4 text-[11px] font-bold text-white/50 px-1">아이콘 오버레이 · ${escapeHtml(folder.title)}</div>` + overlays.map(a => `
+          <button onclick="setFolderOverlay('${escapeHtml(a.id)}')" class="pad-item col-span-4 flex items-center gap-3 px-3 py-2.5 rounded-xl bg-black/40 text-left">
+            <span class="ring-toggle sm pointer-events-none ${cur === a.id ? 'on' : ''}"></span>
+            <span class="flex-1 min-w-0 text-xs font-bold truncate">${escapeHtml(a.name)}</span>
+          </button>`).join('') : '')
+          + (packs.length ? `<div class="col-span-4 text-[11px] font-bold text-white/50 px-1 mt-1">폴더 아트</div>` : '')
+          + packs.map(a => `
           <button onclick="openSilkArt('${escapeHtml(a.id)}')" class="pad-item col-span-2 rounded-xl overflow-hidden bg-black/40 border-2 border-transparent text-left">
-            <img src="${escapeHtml(a.preview || '')}" loading="lazy" class="w-full aspect-video object-cover">
+            <img src="${escapeHtml(artSrc(a.preview || ''))}" loading="lazy" class="w-full aspect-video object-cover">
             <div class="px-2 py-1.5 text-[11px] font-bold truncate">${escapeHtml(a.name)}</div>
           </button>`).join('');
         return;
@@ -2660,7 +2666,7 @@
       container.innerHTML = `
         <div class="relative flex-1 min-h-0 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-[11px] text-white/40">
           ${!url ? '현재 이미지 없음' : isVideoFile(url) ? `<video src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain" autoplay loop muted playsinline></video>` : `<img src="${escapeHtml(artSrc(url))}" class="absolute inset-0 w-full h-full object-contain">`}
-          ${url ? `<button onclick="selectCustArt('')" class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/70 text-[10px] font-bold text-white">지우기</button>` : ''}
+          ${url ? `<button onclick="selectCustArt('')" title="지우기" class="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>` : ''}
         </div>
       `;
       const fine = document.getElementById('custFineTune');
@@ -2956,13 +2962,6 @@
       openUniversalCustomizer();
     }
 
-    function saveUniversalCustomizer() {
-      const current = getActiveItems()[currentSelectedIndex];
-      if (!current || current.isAdd) return;
-      saveLibrary();
-      closeUniversalCustomizer();
-      renderMainView();
-    }
 
     function openSettings() {
       document.getElementById('settingsModal').classList.remove('pointer-events-none', 'opacity-0');
@@ -3882,6 +3881,22 @@
       } catch (e) {}
     }
     // Turns a library pack on, or off when it is the one in use (the files stay until 삭제)
+    // Library pictures are kept on the device, 480 px wide (the web ones are 1920 px and showed late)
+    async function keepSilkPreviews() {
+      if (keepSilkPreviews.busy) return;
+      keepSilkPreviews.busy = true;
+      let changed = false;
+      for (const x of silkLib) {
+        if (!/^https?:/.test(x.preview || '')) continue;
+        const stored = await storeArt(x.preview);
+        if (!stored || stored === x.preview) continue;
+        await nativeJob('shrinkArtFiles', JSON.stringify([stored]), 480);
+        x.preview = stored;
+        changed = true;
+      }
+      keepSilkPreviews.busy = false;
+      if (changed) { saveSilkLib(); renderSilkList.key = ''; if (silkTab === 'library') renderSilkList(); }
+    }
     function useSilkLib(id) {
       const x = silkLib.find(e => e.id === id);
       if (!x) return;
@@ -3914,6 +3929,7 @@
       saveSilkLib();
       if (overlayPack.id === id) clearOverlayPack();
       if (x.root) callNative('deleteFile', x.root);
+      if ((x.preview || '').startsWith('/')) callNative('deleteFile', x.preview);
       renderSilkList();
     }
     function setSilkTab(tab) {
@@ -3938,8 +3954,7 @@
       ['downloads', 'likes', 'dateAdded', 'dateUpdated'].forEach(t => document.getElementById('silkSort_' + t).classList.toggle('active', t === silkSort));
       document.getElementById('silkViewBtn').innerHTML = SILK_VIEW_ICON[silkView];
       const active = document.getElementById('silkActive');
-      active.innerHTML = silkTab === 'icon_overlays' && overlayPack.id
-        ? `<span>사용 중: <b class="text-white">${escapeHtml(overlayPack.name || overlayPack.id)}</b></span><button onclick="setOverlayPack('', {})" class="px-2.5 py-1 rounded-lg bg-white/10 font-bold">끄기</button>` : '';
+      active.innerHTML = '';
       const lib = silkTab === 'library';
       // Passing through the page (menu key held) must not rebuild 30 cards: skip when nothing it shows changed
       const key = [silkTab, silkSort, silkView, silkShown, document.getElementById('silkSearch').value, !!silkAssets, overlayPack.id,
@@ -3955,16 +3970,16 @@
         : silkAssets.filter(a => a.category === silkTab && match(a)).sort((a, b) => val(b) > val(a) ? 1 : val(b) < val(a) ? -1 : 0);
       const inLib = id => silkLib.some(x => x.id === id);
       const inUse = a => silkInstalled(a.category) === a.id;
-      const btnCls = 'px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap';
-      // Store: 설치 / 설치됨 (in the library) / 사용 중. Library: 사용 / 사용 중 and 삭제
+      // Not installed: download icon. Installed: a ring that is filled while in use (press: on / off). Library: ring + X
+      const ring = a => a.category === 'smart_folders' ? '' : `<button onclick="useSilkLib('${escapeHtml(a.id)}')" title="켜기/끄기" class="ring-toggle sm ${inUse(a) ? 'on' : ''}"></button>`;
       const buttons = a => lib
-        ? (a.category === 'smart_folders' ? ''
-            : `<button onclick="useSilkLib('${escapeHtml(a.id)}')" title="켜기/끄기" class="${btnCls} ${inUse(a) ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'}">${inUse(a) ? '켜짐' : '꺼짐'}</button>`)
-          + `<button onclick="deleteSilkLib('${escapeHtml(a.id)}')" class="${btnCls} bg-white/10 hover:bg-red-500/40">삭제</button>`
-        : `<button onclick="installSilk('${escapeHtml(a.id)}', this)" class="${btnCls} ${inUse(a) ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'}">${inUse(a) ? '사용 중' : inLib(a.id) ? '설치됨' : '설치'}</button>`;
+        ? ring(a) + `<button onclick="deleteSilkLib('${escapeHtml(a.id)}')" title="삭제" class="icon-btn sm hover:!bg-rose-600/80"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`
+        : inLib(a.id) ? (ring(a) || `<span class="icon-btn sm opacity-60" title="설치됨"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span>`)
+        : `<button onclick="installSilk('${escapeHtml(a.id)}', this)" title="설치" class="icon-btn sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>`;
       const sub = a => lib ? `${SILK_CAT[a.category] || ''}${a.category === 'smart_folders' ? ' · 아트워크 편집에서 골라 쓰기' : a.author ? ' · ' + escapeHtml(a.author) : ''}` : escapeHtml(a.author || '');
       const stats = a => lib ? '' : `<span>♥ ${(a.likes || 0).toLocaleString()}</span><span>↓ ${(a.downloads || 0).toLocaleString()}</span>`;
-      const img = a => lib ? a.preview : a.previewImageUrl;
+      const img = a => lib ? artSrc(a.preview) : a.previewImageUrl;
+      if (lib) keepSilkPreviews();
       const thumb = (a, cls) => `<img src="${escapeHtml(img(a) || '')}" loading="lazy" class="${cls} object-cover bg-black/40" onerror="this.style.visibility='hidden'">`;
       document.getElementById('silkStatus').innerText = lib && !list.length ? '설치한 팩이 없어요. 위에서 분류를 골라 설치해보세요.' : `${list.length}개`;
       const items = list.slice(0, silkShown).map(a => silkView === 'grid' ? `
@@ -3995,9 +4010,11 @@
       if (cat === 'smart_folders') { addToSilkLib(id, cat, '', {}); return renderSilkList(); }
       const known = silkLib.find(x => x.id === id);
       if (known) return useSilkLib(id);
-      btn.innerText = '받는 중...';
+      // The icon spins while the pack downloads
+      btn.disabled = true; btn.classList.add('animate-pulse');
       const r = await nativeJob('installPackFromUrl', `${SILK_API}/assets/${id}/download`, id);
-      if (r.error) { btn.innerText = '설치'; return alert('설치 실패: ' + r.error); }
+      btn.disabled = false; btn.classList.remove('animate-pulse');
+      if (r.error) return alert('설치 실패: ' + r.error);
       const root = [...Object.values(r.sounds || {}), ...(r.music || []), ...Object.values(r.overlays || {})].map(packRoot).find(Boolean) || '';
       addToSilkLib(id, cat, root, { sounds: r.sounds, music: r.music, meta: r.meta, overlays: r.overlays });
       useSilkLib(id);
@@ -4044,9 +4061,29 @@
       renderMainView();
       renderSilkList();
     }
+    // A folder's own overlay choice (folder.overlay: pack id, '' = none) wins over the one switched on in Settings
+    function folderOverlayId(folder) {
+      return folder && folder.overlay !== undefined ? folder.overlay : overlayPack.id;
+    }
+    function editorFolder() {
+      const item = getActiveItems()[currentSelectedIndex];
+      if (!item || item.packageName && currentPlatformView === 'all') return null;
+      return currentPlatformView === 'all' ? item : getFolder(item.platform);
+    }
+    function setFolderOverlay(id) {
+      const folder = editorFolder();
+      if (!folder) return;
+      folder.overlay = folderOverlayId(folder) === id ? '' : id;   // pressing the one in use turns it off here
+      saveLibrary();
+      renderedCardsKey = '';
+      renderMainView();
+      openSilkArt();
+    }
     function overlayFor(item) {
-      if (!overlayPack.id || !item || item.isAdd || currentPlatformView === 'all') return null;
-      const sys = systemOf(item), m = overlayPack.map;
+      if (!item || item.isAdd || currentPlatformView === 'all') return null;
+      const id = folderOverlayId(getFolder(item.platform));
+      if (!id) return null;
+      const sys = systemOf(item), m = id === overlayPack.id ? overlayPack.map : ((silkLib.find(x => x.id === id) || {}).data || {}).overlays || {};
       const pick = k => m[sys + '/' + k] || m['global/' + k] || '';
       const mask = pick('mask'), overlay = pick('overlay');
       return mask || overlay ? { mask, overlay } : null;
@@ -4573,7 +4610,7 @@
         <div class="p-3 rounded-xl bg-black/30 border border-white/10 space-y-2">
           <div class="flex gap-2">
             <input type="text" value="${escapeHtml(p.name)}" onchange="updatePlatform('${p.id}', 'name', this.value)" placeholder="이름" class="flex-1 min-w-0 font-bold ${field}">
-            <button onclick="deletePlatform('${p.id}')" class="px-3 rounded-xl bg-rose-600/80 text-white text-[11px] font-bold">삭제</button>
+            <button onclick="deletePlatform('${p.id}')" title="삭제" class="icon-btn hover:!bg-rose-600/80"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
           </div>
           <div class="flex gap-2">
             <select onchange="updatePlatform('${p.id}', 'system', this.value)" class="flex-1 min-w-0 ${field}">
@@ -5283,6 +5320,26 @@
       renderDefaultBg();
       syncMusicFolder();
       syncMediaFolders();
+      // First pass after start: every picture of the home screen and of each folder's first cards was decoded
+      // and uploaded the first time it showed (frames of 30-70 ms). Show them once on the hidden warm layer instead.
+      setTimeout(async () => {
+        const urls = [];
+        platformFolders.forEach(f => {
+          [f.heroUrl, f.logoUrl, f.boxUrl].forEach(u => u && urls.push(artSrc(u)));
+          // every card picture of the folder (small), plus the HERO and logo of the card the folder opens on
+          const list = games.filter(g => g.platform === f.platform).sort((a, b) => b.lastPlayed - a.lastPlayed);
+          list.forEach(g => g.boxUrl && urls.push(artSrc(g.boxUrl)));
+          list.slice(0, 2).forEach(g => [g.logoUrl, g.heroUrl].forEach(u => u && urls.push(artSrc(u))));
+        });
+        const warm = document.getElementById('heroWarm1');
+        for (const u of urls) {
+          if (document.hidden || isOpen('settingsModal')) break;
+          await decodedImage(u);
+          warm.style.backgroundImage = `url("${u.replace(/"/g, '%22')}")`;
+          await new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+        }
+        warmNeighbourHeroes();
+      }, 1200);
       // Every settings slider shows its filled part while dragging and when shown
       const settingsEl = document.getElementById('settingsModal');
       settingsEl.addEventListener('input', e => { if (e.target.type === 'range' && !e.target.classList.contains('color-range')) setRangeFill(e.target); });
