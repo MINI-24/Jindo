@@ -2198,7 +2198,8 @@
         void card.offsetWidth;
         card.classList.add('card-press');
       }
-      if (currentPlatformView === 'all') enterFolder(item.platform);
+      if (currentPlatformView === 'all' && (item.packageName || item.shortcut)) launchGame();
+      else if (currentPlatformView === 'all') enterFolder(item.platform);
       else if (item.isAdd) openNewGameModal(item.platform);
       else launchGame();
     }
@@ -2815,12 +2816,15 @@
       document.getElementById('itemEditTitle').innerText = isFolder ? '폴더 편집' : '게임 편집';
       document.getElementById('itemEditGroupLabel').innerText = isFolder ? '플랫폼' : '폴더';
       document.getElementById('folderEditName').value = folder.title;
-      const choices = isFolder ? platforms.map(p => [p.id, p.name]) : platformFolders.map(f => [f.platform, f.title]);
+      const choices = isFolder ? platforms.map(p => [p.id, p.name]) : platformFolders.filter(f => !f.packageName && !f.shortcut).map(f => [f.platform, f.title]);
       document.getElementById('folderEditPlatforms').innerHTML = choices.map(([id, name]) => `
         <button onclick="setFolderPlatform(this.dataset.pid)" data-pid="${escapeHtml(id)}" class="group-option px-3 py-2 rounded-xl text-left text-sm font-bold truncate">${escapeHtml(name)}</button>`).join('');
       toggleGroupList(false);
       toggleLayoutList(false);
-      document.getElementById('itemLayoutRow').classList.toggle('hidden', !isFolder);
+      const appTile = isFolder && !!(folder.packageName || folder.shortcut);
+      document.getElementById('itemLayoutRow').classList.toggle('hidden', !isFolder || appTile);
+      document.getElementById('itemGroupBtn').parentElement.classList.toggle('hidden', appTile);
+      if (appTile) document.getElementById('itemEditTitle').innerText = '앱 편집';
       if (isFolder) markFolderLayout();
       markFolderPlatform();
       const modal = document.getElementById('folderEditModal');
@@ -2901,7 +2905,7 @@
       }
       if (platformFolders.length === 1) return alert('폴더가 하나는 있어야 해요.');
       const inside = games.filter(g => g.platform === folder.platform).length;
-      if (!(await appAsk(`'${folder.title}' 폴더를 지울까요?` + (inside ? `\n안에 있는 게임 ${inside}개도 목록에서 빠져요. (롬 파일은 그대로예요)` : ''), true, '삭제'))) return;
+      if (!(await appAsk(`'${folder.title}' ${folder.packageName || folder.shortcut ? '을(를) 메인화면에서 지울까요?' : '폴더를 지울까요?'}` + (inside ? `\n안에 있는 게임 ${inside}개도 목록에서 빠져요. (롬 파일은 그대로예요)` : ''), true, '삭제'))) return;
       const gone = [folder, ...games.filter(g => g.platform === folder.platform)];
       games = games.filter(g => g.platform !== folder.platform);
       platformFolders = platformFolders.filter(f => f !== folder);
@@ -3377,13 +3381,14 @@
     let newGameApp = null;
     let newGameApps = [];
 
-    function openNewGameModal(platform) {
+    function openNewGameModal(platform, pickPkg) {
       newGameApp = null;
       document.getElementById('newGameTitle').value = '';
-      document.getElementById('newGamePlatforms').innerHTML = platformFolders.map(f => `
+      document.getElementById('newGamePlatforms').innerHTML = `
+        <button onclick="setNewGamePlatform('__home')" data-plat="__home" class="col-span-2 py-1.5 px-1 rounded-lg bg-white/10 font-bold truncate">메인화면</button>` + platformFolders.filter(f => !f.packageName).map(f => `
         <button onclick="setNewGamePlatform(this.dataset.plat)" data-plat="${escapeHtml(f.platform)}" class="py-1.5 px-1 rounded-lg bg-white/10 font-bold truncate">${escapeHtml(f.title)}</button>`).join('');
       const appsFolder = platformFolders.find(f => (platforms.find(p => p.id === f.system) || {}).system === 'apps') || platformFolders[0];
-      setNewGamePlatform(platform && platform !== 'all' ? platform : appsFolder.platform);
+      setNewGamePlatform(platform === '__home' ? '__home' : platform && platform !== 'all' ? platform : appsFolder.platform);
       newGameApps = [...installedDeviceApps].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       document.getElementById('newGameAppGrid').innerHTML = newGameApps.length
         ? newGameApps.map((a, i) => `
@@ -3395,7 +3400,9 @@
       renderNewGamePicked();
       const modal = document.getElementById('newGameModal');
       modal.classList.remove('pointer-events-none', 'opacity-0');
-      padFocusFirst(modal, '.new-app');
+      const pre = pickPkg ? newGameApps.findIndex(a => a.packageName === pickPkg) : -1;
+      if (pre >= 0) { pickNewGameApp(pre); padSetFocus(document.querySelector(`.new-app[data-i="${pre}"]`)); }
+      else padFocusFirst(modal, '.new-app');
     }
     function closeNewGameModal() {
       document.getElementById('newGameModal').classList.add('pointer-events-none', 'opacity-0');
@@ -3467,6 +3474,20 @@
       const sc = newGameApp.shortcut;
       if (sc && !callNative('acceptPinShortcut', sc.token)) return alert('바로가기를 추가하지 못했어요. 앱에서 다시 시도해주세요.');
       if (sc) newGameApp.shortcut = null;   // accepted: closing must not reject it
+      if (newGamePlatform === '__home') {
+        // A home tile: an app (or shortcut) next to the folders; A starts it instead of opening a folder
+        const key = 'app' + Date.now();
+        platformFolders.push({ id: key, platform: key, system: '', title, packageName: newGameApp.packageName,
+          ...(sc ? { shortcut: { pkg: sc.pkg, id: sc.id } } : {}), iconUrl: await shrinkIcon(newGameApp.icon),
+          boxUrl: '', heroUrl: '', logoUrl: '', accentColor: '#334155' });
+        saveLibrary();
+        closeNewGameModal();
+        setPlatformView('all');
+        currentSelectedIndex = platformFolders.length - 1;
+        renderedCardsKey = '';
+        renderMainView();
+        return;
+      }
       games.push({
         ...(sc ? { shortcut: { pkg: sc.pkg, id: sc.id } } : {}),
         id: 'game_' + Date.now(), title, platform: newGamePlatform,
@@ -4722,6 +4743,7 @@
         const div = document.createElement('div');
         div.className = 'pad-item flex flex-col items-center cursor-pointer p-1.5 rounded-xl';
         div.onclick = () => handleAppChosen(app.name, app.icon || '📱', app.packageName);
+        div.dataset.pkg = app.packageName;
 
         let iconMarkup = '';
         if (app.icon && app.icon.startsWith('data:image')) {
@@ -5149,6 +5171,13 @@
       if (isOpen('universalCustomModal') && (key === 'L1' || key === 'R1')) {
         const slots = ['box', 'hero', 'logo', 'video'];
         selectCustSlot(slots[(slots.indexOf(currentCustTab) + (key === 'R1' ? 1 : -1) + slots.length) % slots.length]);
+        return;
+      }
+      // 전체 앱: Y on an app adds it to the home screen or a folder
+      if (key === 'Y' && isOpen('allAppsDrawerModal') && padEl && padEl.dataset.pkg) {
+        const pkg = padEl.dataset.pkg;
+        closeAllAppsDrawer();
+        openNewGameModal('__home', pkg);
         return;
       }
       const openModal = padModals.find(([id]) => isOpen(id));
