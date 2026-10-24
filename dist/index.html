@@ -504,6 +504,10 @@
   }
   #gameCardsContainer .liquid-glass-card { width: calc(var(--thumb-w) + 20px); flex-shrink: 0; }
   #gameCardsContainer .card-thumb { width: var(--thumb-w); height: var(--thumb-h); }
+  /* Icon overlay packs: square pictures at the overlay's own ratio; its mask gives the shape, so no box, rim or square glow */
+  #gameCardsContainer.square-thumbs .card-thumb { height: var(--thumb-w); border-radius: 0; background: transparent; box-shadow: none !important; }
+  #gameCardsContainer.square-thumbs .card-thumb::after { display: none; }
+  #gameCardsContainer.square-thumbs .focused .card-thumb { filter: drop-shadow(0 0 6px var(--accent-glow)) drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6)); }
 
   /* 세로 목록: folders/games as a list on the left, the background and logo get the rest of the screen */
   #mainArea.layout-list { flex-direction: row-reverse; justify-content: flex-start; align-items: stretch; gap: 8px; padding-left: 4px; }
@@ -1830,6 +1834,8 @@
       }
 
       container.innerHTML = '';
+      // Overlay packs are square icons (1024x1024): their games show square, so the frame keeps its own shape
+      container.classList.toggle('square-thumbs', items.some(i => overlayFor(i)));
       items.forEach((item, idx) => {
         const card = document.createElement('div');
 
@@ -2096,7 +2102,8 @@
     function positionWheel() {
       if (currentLayout !== 'list') return;
       const container = document.getElementById('gameCardsContainer');
-      const h = parseFloat(container.style.getPropertyValue('--thumb-h')) || 180;
+      // Square overlay icons are as tall as the cards are wide (--thumb-w = 2/3 of --thumb-h)
+      const h = (parseFloat(container.style.getPropertyValue('--thumb-h')) || 180) * (container.classList.contains('square-thumbs') ? 2 / 3 : 1);
       const scaleAt = a => a === 0 ? 1 : Math.max(0.38, 0.66 - (a - 1) * 0.12);
       const GAP = 14;
       // Room under the selected picture for its name: the name's real height (1 or 2 lines),
@@ -3716,9 +3723,21 @@
         saveSilkLib();
       } catch (e) {}
     }
+    // Turns a library pack on, or off when it is the one in use (the files stay until 삭제)
     function useSilkLib(id) {
       const x = silkLib.find(e => e.id === id);
       if (!x) return;
+      if (silkInstalled(x.category) === id) {
+        if (x.category === 'icon_overlays') setOverlayPack('', {});
+        if (x.category === 'sounds' || audioPrefs.soundPack === id) { audioPrefs.sounds = {}; audioPrefs.soundPack = ''; Object.keys(sfxBuffers).forEach(k => delete sfxBuffers[k]); }
+        if (x.category === 'music' || audioPrefs.musicPack === id) {
+          audioPrefs.tracks = []; audioPrefs.musicPack = '';
+          const audio = document.getElementById('bgmAudio'); audio.pause(); audio.removeAttribute('src');
+          updateBgmWidget();
+        }
+        saveAudio(); renderAudioSettings();
+        return renderSilkList();
+      }
       if (x.category === 'icon_overlays') setOverlayPack(id, x.data.overlays || {});
       else if (x.category !== 'smart_folders') applyAudioPack(x.data || {}, id);
       renderSilkList();
@@ -3775,7 +3794,7 @@
       // Store: 설치 / 설치됨 (in the library) / 사용 중. Library: 사용 / 사용 중 and 삭제
       const buttons = a => lib
         ? (a.category === 'smart_folders' ? ''
-            : `<button onclick="useSilkLib('${escapeHtml(a.id)}')" class="${btnCls} ${inUse(a) ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'}">${inUse(a) ? '사용 중' : '사용'}</button>`)
+            : `<button onclick="useSilkLib('${escapeHtml(a.id)}')" title="켜기/끄기" class="${btnCls} ${inUse(a) ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'}">${inUse(a) ? '켜짐' : '꺼짐'}</button>`)
           + `<button onclick="deleteSilkLib('${escapeHtml(a.id)}')" class="${btnCls} bg-white/10 hover:bg-red-500/40">삭제</button>`
         : `<button onclick="installSilk('${escapeHtml(a.id)}', this)" class="${btnCls} ${inUse(a) ? 'accent-bg text-black' : 'bg-white/10 hover:bg-white/20'}">${inUse(a) ? '사용 중' : inLib(a.id) ? '설치됨' : '설치'}</button>`;
       const sub = a => lib ? `${SILK_CAT[a.category] || ''}${a.category === 'smart_folders' ? ' · 아트워크 편집에서 골라 쓰기' : a.author ? ' · ' + escapeHtml(a.author) : ''}` : escapeHtml(a.author || '');
