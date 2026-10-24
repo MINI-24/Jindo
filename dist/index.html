@@ -2977,12 +2977,54 @@
       return [...sec.querySelectorAll('.seg-option, button, input, select')].filter(el => el.offsetParent !== null && (getComputedStyle(el).visibility !== 'hidden' || el.closest('.dd-wrap.open')));
     }
 
+    // Eased scroll of any container toward a target; a new press retargets the running glide
+    function glideScroll(box, top) {
+      const g = box._glide || (box._glide = { raf: 0, y: 0, ty: 0 });
+      g.ty = Math.max(0, Math.min(top, box.scrollHeight - box.clientHeight));
+      if (g.raf) return;
+      g.y = box.scrollTop;
+      const step = () => {
+        g.y += (g.ty - g.y) * 0.22;
+        const done = Math.abs(g.ty - g.y) < 0.5;
+        if (done) g.y = g.ty;
+        box.scrollTop = g.y;
+        g.raf = done ? 0 : requestAnimationFrame(step);
+      };
+      g.raf = requestAnimationFrame(step);
+    }
+    // Where box is heading (mid-glide the target, else where it is)
+    const glideTarget = box => box._glide && box._glide.raf ? box._glide.ty : box.scrollTop;
+    // Scrolls box so the screen range [top, bottom] (rects measured now) sits inside it with pad to spare.
+    // Measured against where the glide is heading, so quick presses never pull it backwards.
+    function revealIn(box, top, bottom, pad = 12) {
+      const br = box.getBoundingClientRect(), shift = glideTarget(box) - box.scrollTop;
+      top -= shift; bottom -= shift;
+      let delta = 0;
+      if (top < br.top + pad) delta = top - br.top - pad;
+      else if (bottom > br.bottom - pad) delta = bottom - br.bottom + pad;
+      if (delta) glideScroll(box, glideTarget(box) + delta);
+    }
+    // Nearest scrolling ancestor of el (a modal's list, the settings page...)
+    function scrollBoxOf(el) {
+      for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+        const o = getComputedStyle(n).overflowY;
+        if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+      }
+      return null;
+    }
+    function revealEl(el, pad) {
+      const box = scrollBoxOf(el);
+      if (!box) return;
+      const r = el.getBoundingClientRect();
+      revealIn(box, r.top, r.bottom, pad);
+    }
+
     function updateSettingsFocus() {
       document.querySelectorAll('#settingsModal .pad-focus').forEach(el => el.classList.remove('pad-focus'));
       const el = settingsZone === 'nav' ? settingsNavButtons()[settingsNavIdx] : settingsItems()[settingsItemIdx];
       if (el) {
         el.classList.add('pad-focus');
-        if (settingsZone === 'nav') el.scrollIntoView({ block: 'nearest' });
+        if (settingsZone === 'nav') revealEl(el);
         else scrollSettingsTo(el);
       }
     }
@@ -2992,11 +3034,8 @@
     function scrollSettingsTo(el) {
       const panel = document.getElementById('settingsContentPanel');
       const items = settingsItems();
-      // Held key (repeats under 200 ms apart): jump, so the scroll keeps up with the focus
-      const now = performance.now(), behavior = now - (scrollSettingsTo.t || 0) < 200 ? 'auto' : 'smooth';
-      scrollSettingsTo.t = now;
-      if (el === items[0]) return panel.scrollTo({ top: 0, behavior });
-      if (el === items[items.length - 1]) return panel.scrollTo({ top: panel.scrollHeight, behavior });
+      if (el === items[0]) return glideScroll(panel, 0);
+      if (el === items[items.length - 1]) return glideScroll(panel, panel.scrollHeight);
       const pr = panel.getBoundingClientRect(), PAD = 36;
       const box = el.closest('.settings-section > div') || el;
       let r = box.getBoundingClientRect();
@@ -3008,10 +3047,7 @@
         r = list.parentElement.classList.contains('dd-up') ? { top: wr.top - h, bottom: wr.bottom, height: 0 } : { top: wr.top, bottom: wr.bottom + h, height: 0 };
       }
       if (r.height > pr.height - PAD * 2) r = el.getBoundingClientRect();   // a very tall box: just the control
-      let delta = 0;
-      if (r.top < pr.top + PAD) delta = r.top - pr.top - PAD;
-      else if (r.bottom > pr.bottom - PAD) delta = r.bottom - pr.bottom + PAD;
-      if (delta) panel.scrollTo({ top: panel.scrollTop + delta, behavior });
+      revealIn(panel, r.top, r.bottom, PAD);
     }
 
     function handleSettingsKey(key) {
@@ -4741,7 +4777,7 @@
       padEl = el || null;
       if (padEl) {
         padEl.classList.add('pad-focus');
-        padEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        revealEl(padEl);
       }
     }
 
