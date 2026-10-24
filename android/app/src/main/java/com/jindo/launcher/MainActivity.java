@@ -1047,6 +1047,27 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
+        // Shrinks the given stored art files (only under files/art) to max px; logos are shown far smaller than 1920
+        @JavascriptInterface
+        public void shrinkArtFiles(final String id, final String pathsJson, final int max) {
+            final MainActivity activity = (MainActivity) context;
+            new Thread(() -> {
+                int n = 0;
+                try {
+                    String root = new File(activity.getFilesDir(), "art").getCanonicalPath() + File.separator;
+                    JSONArray paths = new JSONArray(pathsJson);
+                    for (int i = 0; i < paths.length(); i++) {
+                        File f = new File(paths.getString(i));
+                        if (!f.getCanonicalPath().startsWith(root) || !f.isFile()) continue;
+                        long before = f.length();
+                        shrinkImage(f, max);
+                        if (f.length() != before) n++;
+                    }
+                } catch (Exception ignored) {}
+                activity.notifyJob(id, "{\"done\":" + n + "}");
+            }).start();
+        }
+
         @JavascriptInterface
         public void httpGet(final String id, final String url) {
             final MainActivity activity = (MainActivity) context;

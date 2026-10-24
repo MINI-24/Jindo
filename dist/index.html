@@ -509,7 +509,8 @@
   #mainArea.layout-list { flex-direction: row-reverse; justify-content: flex-start; align-items: stretch; gap: 8px; padding-left: 4px; }
   #mainArea.layout-list #heroLogoBox { flex: 1 1 auto; }
   /* Names may run past the column; only the top and bottom are cut */
-  #gameCardsViewport.list-viewport { width: min(30%, 380px); overflow: visible; clip-path: inset(0 -100vw 0 0); }
+  /* Cards above and below run off the screen edge instead of being cut at the column edge */
+  #gameCardsViewport.list-viewport { width: min(30%, 380px); overflow: visible; clip-path: inset(-100vh -100vw -100vh 0); }
   #gameCardsContainer.cards-list { position: relative; height: 100%; padding: 0; overflow: visible; }
   /* Every card sits on the wheel's middle line; positionWheel() moves it along the curve (--wheel) */
   #gameCardsContainer.cards-list .liquid-glass-card {
@@ -811,8 +812,8 @@
 
   <!-- ================= TOP BAR (CLEAN, NO OVERFLOW, PROPORTIONED FOR ODIN 3) ================= -->
   <header class="relative z-20 px-8 py-3 flex items-center justify-end gap-2">
-    <!-- Shown only once a BGM file is picked in Settings > 오디오; sits with the top buttons, clear of the card wheel on the left -->
-    <div id="bgmWidget" class="hidden mr-1 items-center gap-2 px-3.5 py-1.5 rounded-2xl liquid-glass text-xs font-medium cursor-pointer max-w-xs" onclick="toggleBgm()">
+    <!-- Shown only once a BGM file is picked in Settings > 오디오 -->
+    <div id="bgmWidget" class="hidden mr-auto items-center gap-2 px-3.5 py-1.5 rounded-2xl liquid-glass text-xs font-medium cursor-pointer max-w-xs" onclick="toggleBgm()">
       <span class="text-xs accent-text">🎵</span>
       <span id="bgmTitle" class="text-white/70 font-semibold truncate text-[11px] whitespace-nowrap">Jindo Lounge</span>
     </div>
@@ -2576,7 +2577,6 @@
     }
 
     function closeUniversalCustomizer() {
-      rememberLogoLayout(getActiveItems()[currentSelectedIndex]);
       document.getElementById('universalCustomModal').classList.add('pointer-events-none', 'opacity-0');
     }
 
@@ -2624,12 +2624,6 @@
       const cells = pos.map(y => pos.map(x => `<div id="itemLogo_pos_${x}_${y}" onclick="setItemLogoPos('${x}', '${y}')"
           class="seg-option !p-0 h-6 !rounded-md flex items-center justify-center ${lay.x === x && lay.y === y ? 'active' : ''}"><span class="w-3 h-1 rounded-full bg-current"></span></div>`).join('')).join('');
       const sizeShort = { s: '작게', m: '보통', l: '크게', xl: '최대' };
-      const same = a => a.x === lay.x && a.y === lay.y && a.size === lay.size;
-      // Mini HERO area with a bar where the logo sits, plus its size
-      const chip = (a, i) => `<button onclick="applyRecentLogo(${i})" class="pad-item flex items-center gap-1.5 px-2 py-1 rounded-lg ${same(a) ? 'accent-bg text-black' : 'bg-black/40 text-white/70'} text-[11px] font-bold">
-          <span class="relative w-7 h-4 rounded-sm border border-white/40 bg-black/30 flex" style="justify-content:${{ start: 'flex-start', center: 'center', end: 'flex-end' }[a.x]};align-items:${{ start: 'flex-start', center: 'center', end: 'flex-end' }[a.y]};padding:2px"><span class="w-2.5 h-1 rounded-full bg-current"></span></span>
-          ${sizeShort[a.size]}</button>`;
-      const recent = recentLogoLayouts();
       return `
         <div class="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
         <div class="flex items-center gap-3">
@@ -2642,12 +2636,7 @@
             ${[['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '최대']].map(([v, text]) => `<div id="itemLogo_size_${v}" onclick="setItemLogoLayout('size', '${v}')"
               class="seg-option !px-0 !py-1 !text-[11px] ${lay.size === v ? 'active' : ''}">${text}</div>`).join('')}
           </div>
-          ${item.logoLayout ? `<button onclick="resetItemLogoLayout()" class="flex-shrink-0 px-3 py-1 rounded-lg bg-white/10 text-[11px] font-bold">기본값</button>` : ''}
         </div>
-        ${recent.length ? `<div class="flex items-center gap-2 flex-wrap">
-          <span class="flex-shrink-0 text-[11px] font-bold text-white/60">최근</span>
-          ${recent.map(chip).join('')}
-        </div>` : ''}
         </div>`;
     }
 
@@ -2684,6 +2673,7 @@
         stored = await storeArt(url);
         artProgress(url, null);
         if (seq !== artPickSeq) return releaseArt(stored);
+        if (stored && field === 'logoUrl') await nativeJob('shrinkArtFiles', JSON.stringify([stored]), 960);
         if (!stored || !(await imageOk(stored))) {
           releaseArt(stored);
           status.innerText = '이미지를 저장하지 못했어요. 다른 이미지를 골라주세요.';
@@ -2695,12 +2685,6 @@
       current[field] = stored;
       current.artFrom = { ...(current.artFrom || {}), [field]: stored !== url ? url : undefined };
       releaseArt(old);
-      // A new logo without its own placement takes the last one used, not the default corner
-      const recent = recentLogoLayouts()[0];
-      if (field === "logoUrl" && stored && !current.logoLayout && recent) {
-        current.logoLayout = { x: recent.x, y: recent.y, size: recent.size };
-        applyLogoLayout(effectiveLogoLayout(current));
-      }
       saveLibrary();
       renderLiveSteamGridGallery();
       markAppliedSgdbArt();
@@ -3160,7 +3144,7 @@
     let logoLayout = { x: 'start', y: 'end', size: 'l' };
 
     function effectiveLogoLayout(item) {
-      return { ...logoLayout, ...((item && item.logoLayout) || {}) };
+      return { ...logoLayout, ...(lastLogoLayout() || {}), ...((item && item.logoLayout) || {}) };
     }
 
     function applyLogoLayout(layout) {
@@ -3180,49 +3164,34 @@
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
       current.logoLayout = { ...(current.logoLayout || {}), [part]: value };
+      rememberLogoLayout(current);
       saveLibrary();
       applyLogoLayout(effectiveLogoLayout(current));
       renderLiveSteamGridGallery();
       padSetFocus(document.getElementById(`itemLogo_${part}_${value}`));
     }
 
-    // Last placements used (newest first, no repeats), saved when the editor closes
-    function recentLogoLayouts() {
-      try { return JSON.parse(localStorage.getItem('jindo_logo_recent') || '[]'); } catch (e) { return []; }
+    // The placement last set in the editor; a logo without its own placement uses it
+    function lastLogoLayout() {
+      try { return JSON.parse(localStorage.getItem('jindo_logo_last') || 'null'); } catch (e) { return null; }
     }
     function rememberLogoLayout(item) {
-      if (!item || !item.logoLayout) return;
-      const lay = effectiveLogoLayout(item);
-      const list = [lay, ...recentLogoLayouts().filter(a => !(a.x === lay.x && a.y === lay.y && a.size === lay.size))].slice(0, 5);
-      localStorage.setItem('jindo_logo_recent', JSON.stringify(list));
-    }
-    function applyRecentLogo(i) {
-      const current = getActiveItems()[currentSelectedIndex], a = recentLogoLayouts()[i];
-      if (!current || current.isAdd || !a) return;
-      current.logoLayout = { x: a.x, y: a.y, size: a.size };
-      saveLibrary();
-      applyLogoLayout(effectiveLogoLayout(current));
-      renderLiveSteamGridGallery();
-      padSetFocus(document.querySelector(`[onclick="applyRecentLogo(${i})"]`));
+      // Logos that followed the old last placement keep it, so only new logos pick up the change
+      const old = effectiveLogoLayout(null);
+      [...games, ...platformFolders].forEach(g => { if (g !== item && g.logoUrl && !g.logoLayout) g.logoLayout = { ...old }; });
+      const { x, y, size } = effectiveLogoLayout(item);
+      localStorage.setItem('jindo_logo_last', JSON.stringify({ x, y, size }));
     }
 
     function setItemLogoPos(x, y) {
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
       current.logoLayout = { ...(current.logoLayout || {}), x, y };
+      rememberLogoLayout(current);
       saveLibrary();
       applyLogoLayout(effectiveLogoLayout(current));
       renderLiveSteamGridGallery();
       padSetFocus(document.getElementById(`itemLogo_pos_${x}_${y}`));
-    }
-
-    function resetItemLogoLayout() {
-      const current = getActiveItems()[currentSelectedIndex];
-      if (!current) return;
-      delete current.logoLayout;
-      saveLibrary();
-      applyLogoLayout(effectiveLogoLayout(current));
-      renderLiveSteamGridGallery();
     }
 
     const glassPrefs = { clear: 0.8, blur: 18 };
@@ -4898,11 +4867,9 @@
           if (dock) dock.classList.remove('active-peek');
           renderMainView();
         } else {
-          // Grid layouts: move one row up; from the top row go to the top bar
-          // A held key stays in the grid instead of jumping up to the top bar
+          // Grid layouts: move one row up. The top bar is touch only: the d-pad stays on folders and games
           const cols = gridColumns();
           if (cols && currentSelectedIndex >= cols) selectItem(currentSelectedIndex - cols, repeat);
-          else if (!repeat) setTopFocus(0);
         }
       } else if (key === 'ArrowDown') {
         const cols = gridColumns();
@@ -4970,6 +4937,9 @@
       playTrack(0);
       moveArtOnDevice();
       // Once: shrink pictures stored before art was kept at screen size
+      // Logos are drawn at most ~900 px wide; big ones made every folder switch stutter while they decoded
+      const logos = [...new Set([...games, ...platformFolders].map(g => g.logoUrl).filter(u => u && u.startsWith('/')))];
+      if (logos.length) nativeJob('shrinkArtFiles', JSON.stringify(logos), 960).then(r => { if (r.done) { currentHeroUrl = ''; renderMainView(); } });
       if (!localStorage.getItem('jindo_art_shrunk')) nativeJob('shrinkStoredArt').then(r => {
         if (r.done === undefined) return;
         localStorage.setItem('jindo_art_shrunk', '1');
