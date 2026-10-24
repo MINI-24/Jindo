@@ -563,7 +563,7 @@
   .top-opt.active { background: var(--accent-glow); color: #000; }
 
   /* Settings menu: all sections fit the screen height */
-  #settingsNav .settings-nav-btn { padding-top: 7px; padding-bottom: 7px; }
+  #settingsNav .settings-nav-btn { padding-top: 6px; padding-bottom: 6px; }
 
   /* Settings dropdowns (enhanceChoiceGroups) */
   /* The open list floats over what is below it, so neighbours never move */
@@ -1021,14 +1021,14 @@
   <div id="settingsModal" class="modal fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none p-8">
     <div class="relative w-full max-w-6xl h-[88vh] liquid-glass rounded-3xl border border-white/20 shadow-2xl flex overflow-hidden">
       
-      <div class="w-64 border-r border-white/10 p-6 flex flex-col justify-between bg-black/40 overflow-y-auto">
+      <div class="w-64 border-r border-white/10 px-6 py-5 flex flex-col justify-between bg-black/40 overflow-y-auto">
         <div>
-          <div class="flex items-center gap-2 mb-4">
+          <div class="flex items-center gap-2 mb-3">
             <div class="w-3.5 h-3.5 rounded-full accent-bg"></div>
             <h2 class="text-lg font-black tracking-tight">설정</h2>
           </div>
 
-          <nav class="space-y-1.5" id="settingsNav">
+          <nav class="space-y-1" id="settingsNav">
             <button onclick="switchSettingsSection('icons')" class="settings-nav-btn w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold bg-white/20 flex items-center gap-2.5" data-sec="icons">
               화면 및 내비게이션
             </button>
