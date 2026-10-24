@@ -1524,6 +1524,17 @@
     </div>
   </div>
 
+  <!-- In-app alert / confirm (appAsk): above every other window -->
+  <div id="appDialog" class="modal fixed inset-0 z-[90] bg-black/60 flex items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none p-6">
+    <div class="w-full max-w-md liquid-glass rounded-3xl p-6 border border-white/20 shadow-2xl flex flex-col gap-5">
+      <p id="appDialogText" class="text-sm font-semibold leading-relaxed whitespace-pre-line"></p>
+      <div class="flex justify-end gap-2">
+        <button id="appDialogCancel" onclick="closeAppDialog(false)" class="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">취소</button>
+        <button id="appDialogOk" onclick="closeAppDialog(true)" class="px-5 py-2.5 rounded-xl accent-bg text-black text-xs font-black">확인</button>
+      </div>
+    </div>
+  </div>
+
   <div id="newGameModal" class="modal fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none p-6">
     <!-- Add a game = pick one of the installed apps, then its folder and name. Art comes later via Y. -->
     <div class="w-full max-w-5xl h-[90vh] liquid-glass rounded-3xl p-4 border border-white/20 shadow-2xl flex flex-col gap-3">
@@ -2749,7 +2760,7 @@
       let backup = null;
       try { backup = JSON.parse(r.json || 'null'); } catch (e) {}
       if (r.error || !backup || backup.app !== 'jindo') return (status.textContent = '실패: ' + (r.error || 'Jindo 백업 파일이 아니에요'));
-      if (!confirm('지금 설정과 라이브러리를 백업 내용으로 바꿀까요?')) return (status.textContent = '');
+      if (!(await appAsk('지금 설정과 라이브러리를 백업 내용으로 바꿀까요?'))) return (status.textContent = '');
       Object.keys(localStorage).filter(k => k.startsWith('jindo_')).forEach(k => localStorage.removeItem(k));
       Object.entries(backup.data || {}).forEach(([k, v]) => { if (k.startsWith('jindo_')) localStorage.setItem(k, v); });
       location.reload();
@@ -2838,11 +2849,11 @@
       setTimeout(() => { currentSelectedIndex = Math.max(0, getActiveItems().indexOf(game)); renderMainView(); scrollCardIntoView(currentSelectedIndex, true); }, 450);
     }
 
-    function deleteFolder() {
+    async function deleteFolder() {
       const folder = folderEditTarget;
       if (!folder) return;
       if (currentPlatformView !== 'all') {
-        if (!confirm(`'${folder.title}'을(를) 삭제할까요?`)) return;
+        if (!(await appAsk(`'${folder.title}'을(를) 삭제할까요?`, true, '삭제'))) return;
         games = games.filter(g => g !== folder);
         releaseArt(...ART_FIELDS.map(f => folder[f]));
         saveLibrary();
@@ -2853,7 +2864,7 @@
       }
       if (platformFolders.length === 1) return alert('폴더가 하나는 있어야 해요.');
       const inside = games.filter(g => g.platform === folder.platform).length;
-      if (!confirm(`'${folder.title}' 폴더를 지울까요?` + (inside ? `\n안에 있는 게임 ${inside}개도 목록에서 빠져요. (롬 파일은 그대로예요)` : ''))) return;
+      if (!(await appAsk(`'${folder.title}' 폴더를 지울까요?` + (inside ? `\n안에 있는 게임 ${inside}개도 목록에서 빠져요. (롬 파일은 그대로예요)` : ''), true, '삭제'))) return;
       const gone = [folder, ...games.filter(g => g.platform === folder.platform)];
       games = games.filter(g => g.platform !== folder.platform);
       platformFolders = platformFolders.filter(f => f !== folder);
@@ -3752,9 +3763,9 @@
       else if (x.category !== 'smart_folders') applyAudioPack(x.data || {}, id);
       renderSilkList();
     }
-    function deleteSilkLib(id) {
+    async function deleteSilkLib(id) {
       const x = silkLib.find(e => e.id === id);
-      if (!x || !confirm(`'${x.name}' 을(를) 삭제할까요?`)) return;
+      if (!x || !(await appAsk(`'${x.name}' 을(를) 삭제할까요?`, true, '삭제'))) return;
       if (audioPrefs.soundPack === id) { audioPrefs.sounds = {}; audioPrefs.soundPack = ''; Object.keys(sfxBuffers).forEach(k => delete sfxBuffers[k]); }
       if (audioPrefs.musicPack === id) {
         audioPrefs.tracks = []; audioPrefs.musicPack = '';
@@ -4486,9 +4497,9 @@
       renderMainView();
     }
 
-    function deletePlatform(id) {
+    async function deletePlatform(id) {
       const p = platforms.find(x => x.id === id);
-      if (!p || !confirm(`'${p.name}' 플랫폼을 지울까요?\n이 플랫폼을 쓰던 폴더와 게임은 남아요. 폴더에서 Y > 플랫폼으로 다시 골라주세요.`)) return;
+      if (!p || !(await appAsk(`'${p.name}' 플랫폼을 지울까요?\n이 플랫폼을 쓰던 폴더와 게임은 남아요. 폴더에서 Y > 플랫폼으로 다시 골라주세요.`, true, '삭제'))) return;
       platforms = platforms.filter(x => x !== p);
       platformFolders.forEach(f => { if (f.system === id) f.system = ''; });
       saveLibrary();
@@ -4877,6 +4888,31 @@
       }
     }
 
+    // In-app dialog instead of the system alert/confirm boxes. appAsk(text, true) asks (취소 / 확인) and
+    // resolves true on 확인; alert() just shows the text with 확인.
+    let appDialogDone = null, appDialogPadBefore = null;
+    function appAsk(text, ask = true, okLabel = '확인') {
+      if (appDialogDone) closeAppDialog(false);
+      document.getElementById('appDialogText').textContent = String(text ?? '');
+      document.getElementById('appDialogCancel').classList.toggle('hidden', !ask);
+      document.getElementById('appDialogOk').textContent = okLabel;
+      const dlg = document.getElementById('appDialog');
+      dlg.classList.remove('pointer-events-none', 'opacity-0');
+      appDialogPadBefore = padEl;
+      padSetFocus(document.getElementById('appDialogOk'));
+      return new Promise(resolve => { appDialogDone = resolve; });
+    }
+    function closeAppDialog(ok) {
+      document.getElementById('appDialog').classList.add('pointer-events-none', 'opacity-0');
+      const done = appDialogDone;
+      appDialogDone = null;
+      padSetFocus(appDialogPadBefore && appDialogPadBefore.isConnected ? appDialogPadBefore : null);
+      // Settings keeps its own focus ring (not padEl): put it back
+      if (isOpen('settingsModal') && !padModals.some(([id]) => isOpen(id))) updateSettingsFocus();
+      if (done) done(ok);
+    }
+    window.alert = text => appAsk(text, false);
+
     // Modals driven by padHandleKey; while one is open, keys don't reach the view behind.
     const padModals = [
       ['selectPickerModal', () => closeSelectPicker()],
@@ -4910,6 +4946,13 @@
     };
 
     function handleGamepadKey(key, repeat) {
+      if (appDialogDone) {
+        const root = document.getElementById('appDialog');
+        if (key === 'B') closeAppDialog(false);
+        else if (key === 'A' && padEl && root.contains(padEl)) padEl.click();
+        else if (key.startsWith('Arrow')) padMove(root, key);
+        return;
+      }
       // 0. Select toggles the launcher settings; the quick panel sits above everything else
       if (key === 'Select') {
         closeQuickPanel();
