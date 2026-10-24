@@ -1657,6 +1657,24 @@
     ];
 
     // User library: games, folders and platforms survive restarts via localStorage.
+    // Everything the app stores lives in Android/data/com.jindo.launcher/files (artwork, silkpod, BGM, sounds, fonts)
+    // so it can be managed from a PC. Old internal files are moved there natively, then saved paths are rewritten.
+    (function migrateMediaPaths() {
+      let m = null;
+      try { m = JSON.parse((window.JindoNative && JindoNative.migrateMedia && JindoNative.migrateMedia()) || 'null'); } catch (e) {}
+      if (!m || !m.from || !m.to || !m.map) return;
+      const pairs = Object.entries(m.map).map(([o, n]) => [m.from + '/' + o + '/', m.to + '/' + n + '/']);
+      pairs.push(...pairs.map(([o, n]) => [o.replace('/data/user/0/', '/data/data/'), n]));
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith('jindo_')) continue;
+        const v = localStorage.getItem(k);
+        let nv = v;
+        pairs.forEach(([o, n]) => { nv = nv.split(o).join(n); });
+        if (nv !== v) localStorage.setItem(k, nv);
+      }
+    })();
+
     let games = [];
     try {
       games = JSON.parse(localStorage.getItem('jindo_games') || '[]');
@@ -1740,7 +1758,7 @@
       return platformFolders.find(f => f.platform === platform);
     }
 
-    // Art is kept on the device: a picked web image is downloaded into the app's files/art/ (JindoNative.cacheImage)
+    // Art is kept on the device: a picked web image is downloaded into the app's files/artwork/ (JindoNative.cacheImage)
     // and the item stores that file path. Replacing, clearing or deleting removes the file once nothing uses it.
     const ART_FIELDS = ['boxUrl', 'heroUrl', 'logoUrl', 'videoUrl'];
     const isVideoFile = path => !/\.gif$/i.test(path || '') && /\.(mp4|webm|mkv|mov|m4v|3gp)$/i.test(path || '');
@@ -1766,7 +1784,7 @@
     // Deletes stored files no folder or game points at any more
     function releaseArt(...paths) {
       const used = new Set([...games, ...platformFolders].flatMap(it => ART_FIELDS.map(f => it[f])));
-      paths.forEach(path => { if (path && /\/files\/(art|video)\//.test(path) && !used.has(path)) callNative('deleteFile', path); });
+      paths.forEach(path => { if (path && /\/files\/artwork\//.test(path) && !used.has(path)) callNative('deleteFile', path); });
     }
     // Library saved before this: web addresses become local files (done once, in the background)
     async function moveArtOnDevice() {
@@ -2061,7 +2079,8 @@
     }
     function setDefaultBg(path) {
       const old = localStorage.getItem('jindo_default_bg');
-      if (old && old !== path) callNative('deleteFile', old);
+      // Only the app's own copy (artwork/) is deleted, never a picture from the Basic_Background folder
+      if (old && old !== path && old.includes('/files/artwork/')) callNative('deleteFile', old);
       if (path) localStorage.setItem('jindo_default_bg', path); else localStorage.removeItem('jindo_default_bg');
       renderDefaultBg();
       currentHeroUrl = '';
@@ -3480,8 +3499,8 @@
       return window.Capacitor && Capacitor.convertFileSrc ? Capacitor.convertFileSrc(path) : 'file://' + path;
     }
     const baseName = path => path.replace(/^.*\//, '').replace(/\.[^.]*$/, '');
-    // files/packs/<id>/sounds/x.mp3 -> files/packs/<id>
-    const packRoot = path => (path.match(/^(.*\/packs\/[^/]+)\//) || [])[1] || '';
+    // files/silkpod/<id>/sounds/x.mp3 -> files/silkpod/<id>
+    const packRoot = path => (path.match(/^(.*\/silkpod\/[^/]+)\//) || [])[1] || '';
 
     // ===== Audio: sound effects (COCOON sound names) + background music playlist =====
     const SFX = [
@@ -3789,7 +3808,7 @@
     }
     let silkSort = 'downloads', silkView = localStorage.getItem('jindo_silk_view') || 'grid';
     // 내 라이브러리: every pack installed from Silk Pod, kept on the device until deleted here.
-    // { id, name, category, author, preview, root (files/packs/<id>, '' for folder art), data (what install returned) }
+    // { id, name, category, author, preview, root (files/silkpod/<id>, '' for folder art), data (what install returned) }
     let silkLib = [];
     try { silkLib = JSON.parse(localStorage.getItem('jindo_silk_lib') || '[]'); } catch (e) {}
     function saveSilkLib() { localStorage.setItem('jindo_silk_lib', JSON.stringify(silkLib)); }

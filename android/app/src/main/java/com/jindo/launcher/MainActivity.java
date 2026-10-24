@@ -70,7 +70,7 @@ public class MainActivity extends BridgeActivity {
             try {
                 Drawable drawable = la.getShortcutIconDrawable(si, getResources().getDisplayMetrics().densityDpi);
                 if (drawable != null) {
-                    File dir = new File(getFilesDir(), "art");
+                    File dir = dataDir("art");
                     if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("Cannot create art directory");
                     File out = new File(dir, "shortcut_" + si.getPackage().replaceAll("[^a-zA-Z0-9._-]", "_")
                             + "_" + si.getId().replaceAll("[^a-zA-Z0-9._-]", "_") + ".png");
@@ -136,7 +136,7 @@ public class MainActivity extends BridgeActivity {
                 new Thread(() -> {
                     try {
                         String name = displayName(uri);
-                        File dir = new File(getFilesDir(), subdir);
+                        File dir = dataDir(subdir);
                         dir.mkdirs();
                         // Art files get a unique name so two pictures called image.jpg never overwrite each other
                         File out = new File(dir, "art".equals(subdir) ? System.currentTimeMillis() + "_" + name : name);
@@ -157,7 +157,8 @@ public class MainActivity extends BridgeActivity {
 
     // ===== Backup / restore =====
     // The ZIP holds backup.json (the page's settings and library) and the app's stored files under files/<dir>/.
-    static final String[] BACKUP_DIRS = { "art", "sounds", "music", "packs", "fonts", "video" };
+    static final String[] BACKUP_DIRS = { "artwork", "silkpod", "BGM", "sounds", "fonts" };
+    static final String[] OLD_DIRS = { "art", "video", "packs", "music", "sounds", "fonts" };
     private String backupJobId, backupJson;
     private final ActivityResultLauncher<String> backupSaver = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("application/zip"), uri -> {
@@ -169,7 +170,7 @@ public class MainActivity extends BridgeActivity {
                         zip.write(json.getBytes("UTF-8"));
                         zip.closeEntry();
                         int files = 0;
-                        for (String dir : BACKUP_DIRS) files += zipTree(zip, new File(getFilesDir(), dir), dir);
+                        for (String dir : BACKUP_DIRS) files += zipTree(zip, dataDir(dir), dir);
                         zip.finish();
                         notifyJob(id, "{\"files\":" + files + "}");
                     } catch (Exception e) {
@@ -211,7 +212,7 @@ public class MainActivity extends BridgeActivity {
                 new Thread(() -> {
                     String json = null;
                     try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(getContentResolver().openInputStream(uri))) {
-                        String root = getFilesDir().getCanonicalPath() + File.separator;
+                        String root = storageRoot().getCanonicalPath() + File.separator;
                         java.util.zip.ZipEntry e;
                         while ((e = zin.getNextEntry()) != null) {
                             if (e.isDirectory()) continue;
@@ -225,8 +226,9 @@ public class MainActivity extends BridgeActivity {
                                 continue;
                             }
                             String top = name.contains("/") ? name.substring(0, name.indexOf('/')) : "";
-                            if (!java.util.Arrays.asList(BACKUP_DIRS).contains(top)) continue;
-                            File out = new File(getFilesDir(), name);
+                            if (!java.util.Arrays.asList(BACKUP_DIRS).contains(top)
+                                    && !java.util.Arrays.asList(OLD_DIRS).contains(top)) continue;
+                            File out = new File(dataDir(top), name.substring(top.length() + 1));
                             if (!out.getCanonicalPath().startsWith(root)) continue;
                             out.getParentFile().mkdirs();
                             copy(zin, out);
@@ -264,6 +266,50 @@ public class MainActivity extends BridgeActivity {
         return "file" + System.currentTimeMillis();
     }
 
+    private File storageRoot() {
+        File external = getExternalFilesDir(null);
+        return external != null ? external : getFilesDir();
+    }
+
+    static String dataFolder(String kind) {
+        switch (kind == null ? "" : kind) {
+            case "art": case "bg": return "artwork";
+            case "video": return "artwork/video";
+            case "packs": return "silkpod";
+            case "music": return "BGM";
+            default: return safeName(kind).replace("..", "_");
+        }
+    }
+
+    File dataDir(String kind) {
+        return new File(storageRoot(), dataFolder(kind));
+    }
+
+    // Keep collisions in the old folder; delete sources only after a complete copy.
+    static void moveMedia(File source, File target, String from, String to, int[] moved) throws java.io.IOException {
+        if (!source.getCanonicalPath().startsWith(from) || !target.getCanonicalPath().startsWith(to))
+            throw new java.io.IOException("Media path outside storage root");
+        if (source.isDirectory()) {
+            if (target.exists() && !target.isDirectory()) return;
+            if (!target.isDirectory() && !target.mkdirs()) throw new java.io.IOException("Cannot create " + target);
+            File[] children = source.listFiles();
+            if (children == null) throw new java.io.IOException("Cannot read " + source);
+            for (File child : children) moveMedia(child, new File(target, child.getName()), from, to, moved);
+            children = source.listFiles();
+            if (children == null) throw new java.io.IOException("Cannot read " + source);
+            if (children.length == 0 && !source.delete()) throw new java.io.IOException("Cannot delete " + source);
+        } else if (source.isFile() && target.createNewFile()) {
+            try (InputStream in = new java.io.FileInputStream(source)) {
+                copy(in, target);
+            } catch (java.io.IOException e) {
+                target.delete();
+                throw e;
+            }
+            if (!source.delete()) throw new java.io.IOException("Cannot delete " + source);
+            moved[0]++;
+        }
+    }
+
     static String safeName(String name) {
         name = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
         return name.isEmpty() || name.startsWith(".") ? "file" + System.currentTimeMillis() : name;
@@ -278,10 +324,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     // A COCOON-style sound/music pack (Silk Pod asset ZIP or theme ZIP): every ".../sounds/<name>.<ext>" and
-    // ".../music/<file>" goes to files/packs/<packId>/; metadata.json or theme.json comes back as text (playlist, volumes).
+    // ".../music/<file>" goes to files/silkpod/<packId>/; metadata.json or theme.json comes back as text (playlist, volumes).
     // Only base names are written, so entries can't escape the pack folder.
     JSONObject unzipPack(File zip, String packId) throws Exception {
-        File root = new File(new File(getFilesDir(), "packs"), safeName(packId));
+        File root = new File(dataDir("packs"), safeName(packId));
         deleteTree(root);
         JSONObject sounds = new JSONObject();
         JSONArray music = new JSONArray();
@@ -986,7 +1032,7 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
-        // Art from the web (SteamGridDB etc.) is kept in files/art/ after the first download, so cards and
+        // Art from the web (SteamGridDB etc.) is kept in files/artwork/ after the first download, so cards and
         // backgrounds load instantly and never paint half-downloaded; result {path} via window.onNativeJob
         @JavascriptInterface
         public void cacheImage(final String id, final String url) {
@@ -999,7 +1045,7 @@ public class MainActivity extends BridgeActivity {
                     StringBuilder hex = new StringBuilder();
                     for (byte b : md.digest(url.getBytes("UTF-8"))) hex.append(String.format("%02x", b));
                     String ext = url.replaceAll("[?#].*$", "").replaceAll("^.*?(\\.(png|jpe?g|webp|gif))?$", "$1").toLowerCase();
-                    File dir = new File(activity.getFilesDir(), "art");
+                    File dir = activity.dataDir("art");
                     dir.mkdirs();
                     File out = new File(dir, hex + (ext.isEmpty() ? ".img" : ext));
                     if (!out.exists() || out.length() == 0) {
@@ -1053,7 +1099,7 @@ public class MainActivity extends BridgeActivity {
             final MainActivity activity = (MainActivity) context;
             new Thread(() -> {
                 int n = 0;
-                File[] files = new File(activity.getFilesDir(), "art").listFiles();
+                File[] files = activity.dataDir("art").listFiles();
                 for (int i = 0; files != null && i < files.length; i++) {
                     long before = files[i].length();
                     shrinkImage(files[i], 1920);
@@ -1063,14 +1109,14 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
-        // Shrinks the given stored art files (only under files/art) to max px; logos are shown far smaller than 1920
+        // Shrinks the given stored art files (only under files/artwork) to max px; logos are shown far smaller than 1920
         @JavascriptInterface
         public void shrinkArtFiles(final String id, final String pathsJson, final int max) {
             final MainActivity activity = (MainActivity) context;
             new Thread(() -> {
                 int n = 0;
                 try {
-                    String root = new File(activity.getFilesDir(), "art").getCanonicalPath() + File.separator;
+                    String root = activity.dataDir("art").getCanonicalPath() + File.separator;
                     JSONArray paths = new JSONArray(pathsJson);
                     for (int i = 0; i < paths.length(); i++) {
                         File f = new File(paths.getString(i));
@@ -1116,13 +1162,59 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
+        @JavascriptInterface
+        public String migrateMedia() {
+            MainActivity activity = (MainActivity) context;
+            JSONObject result = new JSONObject();
+            int[] moved = { 0 };
+            synchronized (MainActivity.class) {
+                try {
+                    File source = activity.getFilesDir();
+                    File target = activity.storageRoot();
+                    JSONObject map = new JSONObject();
+                    for (String kind : OLD_DIRS) map.put(kind, dataFolder(kind));
+                    result.put("moved", 0).put("from", source.getAbsolutePath())
+                            .put("to", target.getAbsolutePath()).put("map", map);
+                    // External storage unavailable: leave originals for the next start.
+                    if (!source.getCanonicalPath().equals(target.getCanonicalPath())) {
+                        String from = source.getCanonicalPath() + File.separator;
+                        String to = target.getCanonicalPath() + File.separator;
+                        for (String kind : OLD_DIRS) {
+                            File old = new File(source, kind);
+                            if (old.exists()) moveMedia(old, activity.dataDir(kind), from, to, moved);
+                        }
+                    }
+                } catch (Exception e) {
+                    try { result.put("error", String.valueOf(e.getMessage())); } catch (Exception ignored) {}
+                } finally {
+                    try {
+                        result.put("moved", moved[0]);
+                        String[] paths = new String[BACKUP_DIRS.length];
+                        for (int i = 0; i < paths.length; i++) paths[i] = activity.dataDir(BACKUP_DIRS[i]).getAbsolutePath();
+                        android.media.MediaScannerConnection.scanFile(context, paths, null, null);
+                    } catch (Exception e) {
+                        try { result.put("error", String.valueOf(e.getMessage())); } catch (Exception ignored) {}
+                    }
+                }
+            }
+            return result.toString();
+        }
+
         // Removes a file this app stored itself (a replaced sound, a removed track or pack)
         @JavascriptInterface
         public boolean deleteFile(String path) {
-            File f = new File(path);
-            if (!f.getAbsolutePath().startsWith(context.getFilesDir().getAbsolutePath())) return false;
-            MainActivity.deleteTree(f);
-            return true;
+            try {
+                File f = new File(path);
+                String canonical = f.getCanonicalPath();
+                File external = context.getExternalFilesDir(null);
+                boolean internal = canonical.startsWith(context.getFilesDir().getCanonicalPath() + File.separator);
+                boolean outside = external != null && canonical.startsWith(external.getCanonicalPath() + File.separator);
+                if (!internal && !outside) return false;
+                MainActivity.deleteTree(f);
+                return !f.exists();
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         @JavascriptInterface
