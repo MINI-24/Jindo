@@ -1318,6 +1318,10 @@ public class MainActivity extends BridgeActivity {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
                     intent.setDataAndType(uri, "application/vnd.android.package-archive");
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    // Straight to Android's own installer (other apps that open APKs, e.g. TeraBox, made a chooser appear)
+                    for (ResolveInfo ri : activity.getPackageManager().queryIntentActivities(intent, 0)) {
+                        if (ri.activityInfo.packageName.contains("packageinstaller")) { intent.setPackage(ri.activityInfo.packageName); break; }
+                    }
                     activity.startActivity(intent);
                     activity.notifyJob(id, "{\"ok\":true}");
                 } catch (Exception e) {
