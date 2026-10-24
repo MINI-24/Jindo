@@ -559,6 +559,9 @@
   .top-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 10rem; padding: 6px; border-radius: 14px; z-index: 40;
     background: rgba(10, 10, 14, 0.96); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 2px; }
   .top-menu.hidden { display: none; }
+  /* Opens with a short drop from its button */
+  .top-menu:not(.hidden) { animation: top-menu-in 180ms var(--ease-out); transform-origin: top right; }
+  @keyframes top-menu-in { from { opacity: 0; translate: 0 -6px; scale: 0.96; } }
   .top-opt { text-align: left; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
   .top-opt.active { background: var(--accent-glow); color: #000; }
 
@@ -695,6 +698,12 @@
   @keyframes card-in { from { translate: 0 22px; scale: 0.9; } }
   @keyframes card-fade { from { opacity: 0; } }
   /* Settings: the page that opens slides in toward where the menu cursor went */
+  /* Icon action button (same size as the toggles) */
+  .icon-btn { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); transition: background-color 160ms ease, transform 160ms var(--ease-out); }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.2); }
+  .icon-btn:active { transform: scale(0.92); }
+  .icon-btn.primary { background: var(--accent-glow); color: #0b0d12; border-color: transparent; }
   /* Icon toggle: one button, lit (accent) when on, its off icon when off */
   .icon-toggle { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center;
     background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); color: rgba(255, 255, 255, 0.55);
@@ -838,7 +847,10 @@
   <header class="relative z-20 px-8 py-3 flex items-center justify-end gap-2">
     <!-- Shown only once a BGM file is picked in Settings > 오디오 -->
     <div id="bgmWidget" class="hidden mr-auto items-center gap-2 px-3.5 py-1.5 rounded-2xl liquid-glass text-xs font-medium cursor-pointer max-w-xs" onclick="toggleBgm()">
-      <span class="text-xs accent-text">🎵</span>
+      <span id="bgmIcon" class="accent-text flex-shrink-0">
+        <svg class="bgm-playing w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <svg class="bgm-paused hidden w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+      </span>
       <span id="bgmTitle" class="text-white/70 font-semibold truncate text-[11px] whitespace-nowrap">Jindo Lounge</span>
     </div>
 
@@ -1156,12 +1168,12 @@
 
           <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
-            <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
-            <div class="flex gap-2">
-              <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
-              <button onclick="setDefaultBg('')" id="defaultBgClear" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">지우기</button>
+            <div class="flex items-center gap-2">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
+              <button onclick="pickDefaultBg()" title="사진 선택"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+              <button onclick="setDefaultBg('')" title="지우기" id="defaultBgClear" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
             </div>
+            <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
             <div id="defaultBgFolder" class="grid grid-cols-4 gap-2"></div>
           </div>
         </div>
@@ -1173,13 +1185,15 @@
 
           <!-- SOUND EFFECTS: COCOON sound names, so Silk Pod / theme packs drop straight in -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">효과음</h4>
+            <div class="flex items-center gap-2">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">효과음</h4>
+              <button onclick="toggleSfxList()" id="sfxListToggle" title="개별 효과음" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            </div>
             <div class="flex items-center gap-3">
               <button id="tg_sfxOn" onclick="setAudioOption('sfxOn', !audioPrefs.sfxOn)" title="효과음" class="icon-toggle"><span class="ic-on"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></span><span class="ic-off"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg></span></button>
               <input type="range" id="sfxVolume" min="0" max="100" oninput="setAudioOption('sfxVolume', this.value / 100)" class="flex-1">
             </div>
             <div id="sfxPackLabel" class="text-[11px] text-white/50"></div>
-            <button onclick="toggleSfxList()" id="sfxListToggle" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">개별 효과음 ▾</button>
             <div id="sfxList" class="space-y-1.5 hidden"></div>
           </div>
 
@@ -1194,17 +1208,17 @@
 
           <!-- BACKGROUND MUSIC: a playlist of files kept in app storage -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">배경 음악</h4>
+            <div class="flex items-center gap-2">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">배경 음악</h4>
+              <button onclick="addMusicFile()" title="음악 추가"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button onclick="importAudioZip()" title="ZIP 가져오기"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></button>
+            </div>
             <div class="flex items-center gap-3">
               <button id="tg_musicOn" onclick="setAudioOption('musicOn', !audioPrefs.musicOn)" title="배경 음악" class="icon-toggle"><span class="ic-on"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span><span class="ic-off"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M3 3l18 18"/></svg></span></button>
               <input type="range" id="musicVolume" min="0" max="100" oninput="setAudioOption('musicVolume', this.value / 100)" class="flex-1">
               <button id="tg_shuffle" onclick="setAudioOption('shuffle', !audioPrefs.shuffle)" title="셔플" class="icon-toggle"><span class="ic-on"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></span><span class="ic-off"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span></button>
             </div>
             <div id="musicList" class="space-y-1"></div>
-            <div class="flex gap-2">
-              <button onclick="addMusicFile()" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">+ 음악 추가</button>
-              <button onclick="importAudioZip()" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">ZIP 가져오기</button>
-            </div>
           </div>
 
         </div>
@@ -1229,9 +1243,11 @@
 
           <!-- FONT -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">글꼴</h4>
+            <div class="flex items-center gap-2">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">글꼴</h4>
+              <button onclick="addFontFile()" title="파일에서 추가"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            </div>
             <div id="fontOptions" class="seg-pill"></div>
-            <button onclick="addFontFile()" class="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">파일에서 추가</button>
           </div>
 
           <!-- ACCENT HIGHLIGHT COLOR PICKER -->
@@ -1400,13 +1416,10 @@
           <div>
             <h3 class="text-lg font-black tracking-tight">백업 및 복원</h3>
           </div>
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">내보내기</h4>
-            <button onclick="exportBackup()" class="w-full py-2.5 rounded-xl accent-bg text-black text-xs font-black">백업 파일 만들기</button>
-          </div>
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">가져오기</h4>
-            <button onclick="importBackup()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">백업 파일 불러오기</button>
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-2">
+            <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">설정 백업 및 복원</h4>
+            <button onclick="exportBackup()" title="백업"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
+            <button onclick="importBackup()" title="복원"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14"/></svg></button>
           </div>
           <div id="backupStatus" class="text-[11px] text-white/60"></div>
         </div>
@@ -1430,7 +1443,7 @@
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">업데이트</h4>
             <div class="flex items-center gap-3">
-              <button onclick="checkUpdate()" id="updateCheckBtn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">업데이트 확인</button>
+              <button onclick="checkUpdate()" id="updateCheckBtn" title="업데이트 확인" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
               <span id="updateStatus" class="flex-1 text-xs text-white/70"></span>
               <button onclick="installUpdate()" id="updateInstallBtn" class="hidden relative overflow-hidden px-4 py-2 rounded-xl accent-bg text-black text-xs font-black">설치</button>
             </div>
@@ -1991,17 +2004,24 @@
 
       const logo = document.getElementById('heroLogo');
       const logoUrl = item.logoUrl || '';
-      applyLogoLayout(effectiveLogoLayout(item));
       if (logo.dataset.url !== logoUrl) {
         logo.dataset.url = logoUrl;
-        logo.classList.toggle('hidden', !logoUrl);
-        if (logoUrl) {
+        // The new logo is decoded first, then its picture, place and fade-in change together
+        // (swapping src at once showed the old logo in the new place, then popped the new one in)
+        const seq = updateHeroView.logoSeq = (updateHeroView.logoSeq || 0) + 1;
+        const show = () => {
+          if (seq !== updateHeroView.logoSeq) return;
+          applyLogoLayout(effectiveLogoLayout(item));
+          logo.classList.toggle('hidden', !logoUrl);
+          if (!logoUrl) return;
           logo.src = artSrc(logoUrl);
           logo.classList.remove('title-swap');
           void logo.offsetWidth;
           logo.classList.add('title-swap');
-        }
-      }
+        };
+        if (logoUrl) decodedImage(artSrc(logoUrl)).then(show); else show();
+        requestAnimationFrame(warmNeighbourHeroes);
+      } else applyLogoLayout(effectiveLogoLayout(item));
 
       // No HERO of its own: the default background from Settings, else the blurred box art
       const def = !item.heroUrl && localStorage.getItem('jindo_default_bg');
@@ -2068,8 +2088,20 @@
       setDefaultBg(r.path);
     }
 
+    // Decoded pictures kept ready (the logos next to the cursor), so a swap never waits on decoding
+    const decodedCache = new Map();
+    function decodedImage(url) {
+      if (!decodedCache.has(url)) {
+        const img = new Image();
+        img.src = url;
+        decodedCache.set(url, img.decode().catch(() => {}).then(() => img));
+        if (decodedCache.size > 12) decodedCache.delete(decodedCache.keys().next().value);
+      }
+      return decodedCache.get(url);
+    }
     function warmNeighbourHeroes() {
       const items = getActiveItems(), n = items.length;
+      [1, -1, 2, -2].forEach(d => { const it = n > 1 ? items[(currentSelectedIndex + d + n) % n] : null; if (it && it.logoUrl) decodedImage(artSrc(it.logoUrl)); });
       [1, -1].forEach((d, i) => {
         const it = n > 1 ? items[(currentSelectedIndex + d + n) % n] : null;
         const url = it && it.heroUrl ? artSrc(it.heroUrl) : '';
@@ -3597,7 +3629,10 @@
       widget.classList.toggle('hidden', !show);
       widget.classList.toggle('flex', !!show);
       const name = tracks[trackIndex] ? tracks[trackIndex].name : '';
-      document.getElementById('bgmTitle').innerText = audio.paused ? '일시정지 · ' + name : name;
+      document.getElementById('bgmTitle').innerText = name;
+      // Paused: a pause icon instead of words
+      document.querySelector('#bgmIcon .bgm-playing').classList.toggle('hidden', audio.paused);
+      document.querySelector('#bgmIcon .bgm-paused').classList.toggle('hidden', !audio.paused);
       // The playing song is the highlighted one in Settings > 오디오, whatever started it
       document.querySelectorAll('#musicList > div').forEach((row, i) => row.firstElementChild && row.firstElementChild.classList.toggle('accent-text', i === trackIndex));
     }
@@ -3648,8 +3683,8 @@
           <span class="w-24 flex-shrink-0 font-bold">${label}</span>
           <span class="flex-1 min-w-0 truncate text-[11px] text-white/40">${audioPrefs.sounds[name] ? escapeHtml(baseName(audioPrefs.sounds[name])) : '기본'}</span>
           <button onclick="playSfx('${name}', true)" title="재생" class="${iconBtn}"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-          <button onclick="changeSfx('${name}')" class="${btn}">변경</button>
-          <button onclick="resetSfx('${name}')" class="${btn}">기본</button>
+          <button onclick="changeSfx('${name}')" title="변경" class="${iconBtn}"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+          <button onclick="resetSfx('${name}')" title="기본" class="${iconBtn}"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
         </div>`).join('');
       const tracks = currentTracks();
       document.getElementById('musicList').innerHTML = tracks.length ? tracks.map((t, i) => `
@@ -3663,7 +3698,7 @@
     // The 14 rows stay folded until wanted
     function toggleSfxList() {
       const open = document.getElementById('sfxList').classList.toggle('hidden') === false;
-      document.getElementById('sfxListToggle').innerText = open ? '개별 효과음 ▴' : '개별 효과음 ▾';
+      document.getElementById('sfxListToggle').style.rotate = open ? '180deg' : '';
     }
 
     async function changeSfx(name) {
