@@ -3627,6 +3627,8 @@
       widget.classList.toggle('flex', !!show);
       const name = tracks[trackIndex] ? tracks[trackIndex].name : '';
       document.getElementById('bgmTitle').innerText = audio.paused ? '일시정지 · ' + name : name;
+      // The playing song is the highlighted one in Settings > 오디오, whatever started it
+      document.querySelectorAll('#musicList > div').forEach((row, i) => row.firstElementChild && row.firstElementChild.classList.toggle('accent-text', i === trackIndex));
     }
     function toggleBgm() {
       const audio = document.getElementById('bgmAudio');
@@ -3738,7 +3740,9 @@
       const added = r.files.filter(f => !had.has(f.path) && !skipped.has(f.path))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko')).map(f => ({ path: f.path, name: baseName(f.path) }));
       if (!added.length && kept.length === audioPrefs.tracks.length) return;
+      const playing = (currentTracks()[trackIndex] || {}).path;
       audioPrefs.tracks = [...kept, ...added];
+      trackIndex = Math.max(0, currentTracks().findIndex(t => t.path === playing));   // same song stays current
       audioPrefs.skipped = [...skipped].filter(p => inDir.has(p));
       saveAudio();
       renderAudioSettings();
@@ -3777,6 +3781,7 @@
       else if (!packRoot(t.path)) callNative('deleteFile', t.path);
       saveAudio();
       if (i === trackIndex) playTrack(i);
+      else if (i < trackIndex) trackIndex--;   // the playing song moved up one place
       renderAudioSettings();
     }
 
