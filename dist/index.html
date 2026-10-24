@@ -3093,6 +3093,10 @@
         cur.value = Math.max(+cur.min, Math.min(+cur.max, +cur.value + (key === 'ArrowRight' ? step : -step)));
         cur.dispatchEvent(new Event('input'));
         setKeySound(key === 'ArrowRight' ? 'slider_increase' : 'slider_decrease');
+      } else if (key.startsWith('Arrow') && cur.closest('.dd-wrap.open .dd-list')) {
+        // Inside an open dropdown the cursor stays in its list (stops at either end); B closes it
+        const next = stepInList(cur.closest('.dd-list'), cur, key);
+        if (next) settingsItemIdx = items.indexOf(next);
       } else if (key.startsWith('Arrow')) {
         // By screen position, so grids (fonts, folders) and side-by-side fields go where the arrow points
         const next = nearestInDirection(items, cur, key);
@@ -4802,10 +4806,19 @@
       padSetFocus((selector && items.find(el => el.matches(selector))) || items[0]);
     }
 
+    // Up/Down to the neighbour inside an open list (dropdown or folder-edit group); null at either end or for ◀ ▶
+    function stepInList(list, cur, key) {
+      if (key !== 'ArrowUp' && key !== 'ArrowDown') return null;
+      const opts = [...list.querySelectorAll(PAD_FOCUSABLE + ', .seg-option')].filter(el => el.offsetParent !== null);
+      return opts[opts.indexOf(cur) + (key === 'ArrowDown' ? 1 : -1)] || null;
+    }
+
     function padMove(root, key) {
       const items = padItems(root);
       if (!items.length) return;
       if (!padEl || !items.includes(padEl)) return padSetFocus(items[0]);
+      const list = padEl.closest('.group-list.open, .dd-wrap.open .dd-list');
+      if (list) { const next = stepInList(list, padEl, key); if (next) padSetFocus(next); return; }
       const best = nearestInDirection(items, padEl, key);
       if (best) padSetFocus(best);
     }
@@ -4834,8 +4847,15 @@
 
     function padHandleKey(root, key, close) {
       const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+      const openList = padEl && padEl.closest('.group-list.open');
       if (key === 'B') {
         if (typing) document.activeElement.blur();
+        else if (openList) {
+          // B closes an open folder-edit list first, back on the row that opened it
+          const fn = openList.id === 'folderEditPlatforms' ? 'toggleGroupList' : 'toggleLayoutList';
+          window[fn](false);
+          padSetFocus(root.querySelector(`[onclick^="${fn}("]`));
+        }
         else close();
       } else if (key.startsWith('Arrow')) {
         if (typing) document.activeElement.blur();
