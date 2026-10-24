@@ -1140,7 +1140,7 @@
           <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
-            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Pictures/Jindo</b> 폴더에 넣은 사진이 아래 목록에 나와요. 골라서 쓰세요.</p>
+            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/background</b> 폴더에 넣은 사진이 아래 목록에 나와요. 골라서 쓰세요.</p>
             <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
             <div class="flex gap-2">
               <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
@@ -1196,7 +1196,7 @@
               <div onclick="setAudioOption('shuffle', false)" id="shuffle_false" class="seg-option !px-0">순서대로</div>
               <div onclick="setAudioOption('shuffle', true)" id="shuffle_true" class="seg-option !px-0">셔플</div>
             </div>
-            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Music/Jindo</b> 폴더에 넣은 음악은 런처로 돌아올 때 자동으로 추가돼요.</p>
+            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/music</b> 폴더에 넣은 음악은 런처로 돌아올 때 자동으로 추가돼요.</p>
             <div id="musicList" class="space-y-1.5"></div>
             <div class="flex gap-2">
               <button onclick="addMusicFile()" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">+ 음악 추가</button>
@@ -1402,7 +1402,7 @@
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">HERO 영상 폴더</h4>
-            <p class="text-[11px] text-white/60">PC에서 <b class="text-white/80">Movies/Jindo</b> 폴더에 넣은 영상은 아트워크 편집(Y) > 영상 목록에 나와요. 이름은 아무거나 괜찮고, 어디에 쓸지는 거기서 고르세요.</p>
+            <p class="text-[11px] text-white/60">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/video</b> 폴더에 넣은 영상은 아트워크 편집(Y) > 영상 목록에 나와요. 이름은 아무거나 괜찮고, 어디에 쓸지는 거기서 고르세요.</p>
           </div>
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
@@ -2548,11 +2548,11 @@
 
     function showArtResults() {
       if (silkArtPack !== null && document.getElementById('sgdbResults').querySelector('[onclick^="openSilkArt"]')) return openSilkArt(silkArtPack || undefined);
-      // 영상 has no SteamGridDB results: the + tile (a file from the device) and the videos in Movies/Jindo
+      // 영상 has no SteamGridDB results: the + tile (a file from the device) and the videos in files/video
       if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
       else if (currentCustTab === 'video') {
         const vids = folderVideos();
-        sgdbStatus(vids.length ? `Movies/Jindo · ${vids.length}개` : 'PC에서 Movies/Jindo 폴더에 영상을 넣으면 여기 나와요.');
+        sgdbStatus(vids.length ? `video 폴더 · ${vids.length}개` : 'PC에서 Android/data/com.jindo.launcher/files/video 폴더에 영상을 넣으면 여기 나와요.');
         document.getElementById('sgdbResults').innerHTML = artAddTile() + vids.map(f => `
           <button onclick="selectCustArt(this.dataset.url)" data-url="${escapeHtml(f)}" style="aspect-ratio:16/9"
             class="sgdb-art pad-item relative col-span-2 rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
@@ -3692,8 +3692,10 @@
       renderAudioSettings();
     }
 
-    // Music/Jindo in shared storage: what is put there joins the playlist, what is taken out leaves it
-    const MUSIC_DIR = '/storage/emulated/0/Music/Jindo';
+    // files/music in shared storage: what is put there joins the playlist, what is taken out leaves it
+    // The launcher's own data folder (PC: 내부 공유 저장용량/Android/data/com.jindo.launcher/files)
+    const MEDIA_ROOT = '/storage/emulated/0/Android/data/com.jindo.launcher/files';
+    const MUSIC_DIR = MEDIA_ROOT + '/music';
     function syncMusicFolder() {
       callNative('makeDir', MUSIC_DIR);
       let r = {};
@@ -3712,9 +3714,9 @@
       if (wasEmpty && currentTracks().length && !document.hidden) playTrack(0);
     }
 
-    // Pictures/Jindo and Movies/Jindo (shared storage): their files are offered in the 기본 배경 list and the
+    // files/background and files/video (shared storage): their files are offered in the 기본 배경 list and the
     // editor's 영상 tab; nothing is applied until it is picked there
-    const BG_DIR = '/storage/emulated/0/Pictures/Jindo', VIDEO_DIR = '/storage/emulated/0/Movies/Jindo';
+    const BG_DIR = MEDIA_ROOT + '/background', VIDEO_DIR = MEDIA_ROOT + '/video';
     function listDir(dir, exts) {
       callNative('makeDir', dir);
       try { const r = JSON.parse(callNative('listRomFiles', dir, exts) || '{}'); return r.error ? [] : r.files.map(f => f.path).sort((a, b) => a.localeCompare(b, 'ko')); } catch (e) { return []; }
@@ -3722,6 +3724,7 @@
     const folderPictures = () => listDir(BG_DIR, 'png,jpg,jpeg,webp,gif');
     const folderVideos = () => listDir(VIDEO_DIR, 'mp4,webm,mkv,mov,gif');
     function syncMediaFolders() {
+      callNative('makeDir', BG_DIR); callNative('makeDir', VIDEO_DIR);   // all three folders exist from the start
       if (isOpen('settingsModal')) renderDefaultBg();
       if (isOpen('universalCustomModal') && currentCustTab === 'video') showArtResults();
     }
@@ -3730,7 +3733,7 @@
       const t = currentTracks()[i];
       if (!t) return;
       audioPrefs.tracks = audioPrefs.tracks.filter(x => x !== t);
-      // A song from Music/Jindo stays on the device; it is only left out of the playlist from now on
+      // A song from files/music stays on the device; it is only left out of the playlist from now on
       if (t.path.startsWith(MUSIC_DIR + '/')) audioPrefs.skipped = [...(audioPrefs.skipped || []), t.path];
       else if (!packRoot(t.path)) callNative('deleteFile', t.path);
       saveAudio();

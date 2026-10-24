@@ -861,7 +861,11 @@ public class MainActivity extends BridgeActivity {
             try {
                 File dir = new File(dirPath);
                 if (!dir.getCanonicalPath().startsWith("/storage/")) return false;
-                return dir.isDirectory() || dir.mkdirs();
+                if (dir.isDirectory()) return true;
+                boolean made = dir.mkdirs();
+                // So a PC connected over USB sees the new folder right away
+                if (made) android.media.MediaScannerConnection.scanFile(context, new String[] { dir.getAbsolutePath() }, null, null);
+                return made;
             } catch (Exception e) {
                 return false;
             }
