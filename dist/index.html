@@ -3056,13 +3056,20 @@
       revealIn(panel, r.top, r.bottom, PAD);
     }
 
+    // Back to the left menu, on the page that is open
+    function toSettingsNav() {
+      settingsZone = 'nav';
+      const i = settingsNavButtons().findIndex(b => b.classList.contains('bg-white/20'));
+      if (i >= 0) settingsNavIdx = i;
+    }
+
     function handleSettingsKey(key) {
       if (key === 'B') {
         // First B closes an open dropdown or leaves a text field, the next one closes settings
         const openDd = document.querySelector('#settingsModal .dd-wrap.open');
         if (openDd) { toggleDropdown(openDd, false); return; }
         if (document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName)) document.activeElement.blur();
-        else if (settingsZone === 'content') settingsZone = 'nav';
+        else if (settingsZone === 'content') toSettingsNav();
         else closeSettings();
         updateSettingsFocus();
         return;
@@ -3086,7 +3093,7 @@
 
       const items = settingsItems();
       const cur = items[settingsItemIdx];
-      if (!cur) { settingsZone = 'nav'; updateSettingsFocus(); return; }
+      if (!cur) { toSettingsNav(); updateSettingsFocus(); return; }
       const isRange = el => el.tagName === 'INPUT' && el.type === 'range';
 
       if ((key === 'ArrowLeft' || key === 'ArrowRight') && isRange(cur)) {
@@ -3103,7 +3110,7 @@
         // By screen position, so grids (fonts, folders) and side-by-side fields go where the arrow points
         const next = nearestInDirection(items, cur, key);
         if (next) settingsItemIdx = items.indexOf(next);
-        else if (key === 'ArrowLeft') settingsZone = 'nav';
+        else if (key === 'ArrowLeft') toSettingsNav();
       } else if (key === 'A') {
         if (cur.tagName === 'INPUT' && cur.type !== 'file') cur.focus();
         else if (cur.tagName === 'SELECT') openSelectPicker(cur);
@@ -4840,6 +4847,8 @@
         const across = horizontal ? Math.abs(dy) : Math.abs(dx);
         // e.g. → from the search button goes to the result grid beside it, not the small 지우기 button lower down
         const overlaps = horizontal ? b.top < a.bottom && b.bottom > a.top : b.left < a.right && b.right > a.left;
+        // ◀ ▶ only move along the same row; nothing beside it means nothing (settings then goes to the menu)
+        if (horizontal && !overlaps) continue;
         // In line with it: the nearest step wins (a wide control above a narrow one still reaches it); otherwise far behind
         const score = overlaps ? along + across * 0.3 : 10000 + along + across * 2.5;
         if (score < bestScore) { best = el; bestScore = score; }
