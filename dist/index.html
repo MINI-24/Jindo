@@ -1140,7 +1140,6 @@
           <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
-            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/Basic_Background</b> 폴더에 넣은 사진이 아래 목록에 나와요. 골라서 쓰세요.</p>
             <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
             <div class="flex gap-2">
               <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
@@ -1196,7 +1195,6 @@
               <div onclick="setAudioOption('shuffle', false)" id="shuffle_false" class="seg-option !px-0">순서대로</div>
               <div onclick="setAudioOption('shuffle', true)" id="shuffle_true" class="seg-option !px-0">셔플</div>
             </div>
-            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/BGM</b> 폴더에 넣은 음악은 런처로 돌아올 때 자동으로 추가돼요.</p>
             <div id="musicList" class="space-y-1.5"></div>
             <div class="flex gap-2">
               <button onclick="addMusicFile()" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">+ 음악 추가</button>
@@ -1398,11 +1396,6 @@
         <div id="secApi" class="settings-section space-y-6 hidden">
           <div>
             <h3 class="text-lg font-black tracking-tight text-white">게임 아트 설정</h3>
-          </div>
-
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">HERO 영상 폴더</h4>
-            <p class="text-[11px] text-white/60">PC에서 <b class="text-white/80">Android/data/com.jindo.launcher/files/Background_Video</b> 폴더에 넣은 영상은 아트워크 편집(Y) > 영상 목록에 나와요. 이름은 아무거나 괜찮고, 어디에 쓸지는 거기서 고르세요.</p>
           </div>
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
@@ -2571,7 +2564,7 @@
       if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
       else if (currentCustTab === 'video') {
         const vids = folderVideos();
-        sgdbStatus(vids.length ? `Background_Video · ${vids.length}개` : 'PC에서 Android/data/com.jindo.launcher/files/Background_Video 폴더에 영상을 넣으면 여기 나와요.');
+        sgdbStatus(vids.length ? `Background_Video · ${vids.length}개` : '');
         document.getElementById('sgdbResults').innerHTML = artAddTile() + vids.map(f => `
           <button onclick="selectCustArt(this.dataset.url)" data-url="${escapeHtml(f)}" style="aspect-ratio:16/9"
             class="sgdb-art pad-item relative col-span-2 rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
