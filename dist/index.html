@@ -681,11 +681,13 @@
   }
   .title-swap { animation: title-in var(--dur-med) var(--ease-out); }
 
-  /* Cards enter with a short stagger when the list changes */
-  @keyframes card-in {
-    from { opacity: 0; transform: translateY(22px) scale(0.9); }
-  }
-  .card-enter { animation: card-in 520ms var(--ease-spring) backwards; }
+  /* Cards enter with a short stagger when the list changes. The card only rises (translate/scale) and its
+     picture fades: transform or opacity animated on the card itself kept its own transitions from starting,
+     so the wheel jumped instead of gliding for about a second after entering or leaving a folder */
+  @keyframes card-in { from { translate: 0 22px; scale: 0.9; } }
+  @keyframes card-fade { from { opacity: 0; } }
+  .card-enter { animation: card-in 520ms var(--ease-spring) backwards; animation-delay: var(--in-delay, 0ms); }
+  .card-enter:not(.card-press) > .card-thumb { animation: card-fade 320ms ease backwards; animation-delay: var(--in-delay, 0ms); }
 
   /* Entering/leaving a folder: the old cards sink and fade before the new ones rise in */
   #gameCardsContainer { transition: opacity 170ms ease, transform 220ms var(--ease-out); }
@@ -1828,7 +1830,7 @@
         const card = document.createElement('div');
 
         card.className = `liquid-glass-card card-enter cursor-${currentCursorStyle} p-2.5`;
-        card.style.animationDelay = Math.min(idx, 10) * 45 + 'ms';
+        card.style.setProperty('--in-delay', Math.min(idx, 10) * 45 + 'ms');
 
         card.onclick = () => {
           selectItem(idx);
