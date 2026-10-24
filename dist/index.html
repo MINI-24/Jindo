@@ -504,10 +504,10 @@
   }
   #gameCardsContainer .liquid-glass-card { width: calc(var(--thumb-w) + 20px); flex-shrink: 0; }
   #gameCardsContainer .card-thumb { width: var(--thumb-w); height: var(--thumb-h); }
-  /* Icon overlay packs: square pictures at the overlay's own ratio; its mask gives the shape, so no box, rim or square glow */
-  #gameCardsContainer.square-thumbs .card-thumb { height: var(--thumb-w); border-radius: 0; background: transparent; box-shadow: none !important; }
-  #gameCardsContainer.square-thumbs .card-thumb::after { display: none; }
-  #gameCardsContainer.square-thumbs .focused .card-thumb { filter: drop-shadow(0 0 6px var(--accent-glow)) drop-shadow(0 10px 16px rgba(0, 0, 0, 0.6)); }
+  /* Icon overlay packs are square (1024x1024) but cards are 2:3: mask and frame are 9-sliced, so corners and
+     badges keep their own ratio at the card's width and only the plain middle of the sides stretches */
+  .ov-mask { -webkit-mask-box-image-slice: 33.3% fill; -webkit-mask-box-image-width: calc(var(--thumb-w) / 3); }
+  .ov-frame { border-style: solid; border-width: 0; border-image-slice: 33.3% fill; border-image-width: calc(var(--thumb-w) / 3); }
 
   /* 세로 목록: folders/games as a list on the left, the background and logo get the rest of the screen */
   #mainArea.layout-list { flex-direction: row-reverse; justify-content: flex-start; align-items: stretch; gap: 8px; padding-left: 4px; }
@@ -1834,8 +1834,6 @@
       }
 
       container.innerHTML = '';
-      // Overlay packs are square icons (1024x1024): their games show square, so the frame keeps its own shape
-      container.classList.toggle('square-thumbs', items.some(i => overlayFor(i)));
       items.forEach((item, idx) => {
         const card = document.createElement('div');
 
@@ -1867,11 +1865,11 @@
           `;
         } else {
           const ov = overlayFor(item);
-          const maskCss = ov && ov.mask ? `-webkit-mask-image:url('${artSrc(ov.mask)}');mask-image:url('${artSrc(ov.mask)}');-webkit-mask-size:100% 100%;mask-size:100% 100%;` : '';
+          const maskCss = ov && ov.mask ? `-webkit-mask-box-image-source:url('${artSrc(ov.mask)}');` : '';
           card.innerHTML = `
             <div class="card-thumb relative rounded-xl overflow-hidden mb-2 bg-black/50">
-              <div class="w-full h-full" style="${maskCss}">${artMarkup(item)}</div>
-              ${ov && ov.overlay ? `<img src="${escapeHtml(artSrc(ov.overlay))}" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:3">` : ''}
+              <div class="w-full h-full ${maskCss ? 'ov-mask' : ''}" style="${maskCss}">${artMarkup(item)}</div>
+              ${ov && ov.overlay ? `<div class="ov-frame absolute inset-0 pointer-events-none" style="z-index:3;border-image-source:url('${escapeHtml(artSrc(ov.overlay))}')"></div>` : ''}
             </div>
             <div class="px-1">
               <h4 class="text-xs font-bold truncate">${escapeHtml(item.title)}</h4>
@@ -2102,8 +2100,7 @@
     function positionWheel() {
       if (currentLayout !== 'list') return;
       const container = document.getElementById('gameCardsContainer');
-      // Square overlay icons are as tall as the cards are wide (--thumb-w = 2/3 of --thumb-h)
-      const h = (parseFloat(container.style.getPropertyValue('--thumb-h')) || 180) * (container.classList.contains('square-thumbs') ? 2 / 3 : 1);
+      const h = parseFloat(container.style.getPropertyValue('--thumb-h')) || 180;
       const scaleAt = a => a === 0 ? 1 : Math.max(0.38, 0.66 - (a - 1) * 0.12);
       const GAP = 14;
       // Room under the selected picture for its name: the name's real height (1 or 2 lines),
