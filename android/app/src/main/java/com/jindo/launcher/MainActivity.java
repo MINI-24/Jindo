@@ -855,6 +855,18 @@ public class MainActivity extends BridgeActivity {
             return result.toString();
         }
 
+        // Creates a folder in shared storage (the Music/Jindo folder the page reads music from)
+        @JavascriptInterface
+        public boolean makeDir(String dirPath) {
+            try {
+                File dir = new File(dirPath);
+                if (!dir.getCanonicalPath().startsWith("/storage/")) return false;
+                return dir.isDirectory() || dir.mkdirs();
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
         // Generic emulator launch, built from a spec the page derives from ES-DE's Android launch commands
         // (es_systems.xml / es_find_rules.xml): components to try, action, category, data URI, extras, flags.
         @JavascriptInterface

@@ -1194,6 +1194,7 @@
               <div onclick="setAudioOption('shuffle', false)" id="shuffle_false" class="seg-option !px-0">순서대로</div>
               <div onclick="setAudioOption('shuffle', true)" id="shuffle_true" class="seg-option !px-0">셔플</div>
             </div>
+            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Music/Jindo</b> 폴더에 넣은 음악은 런처로 돌아올 때 자동으로 추가돼요.</p>
             <div id="musicList" class="space-y-1.5"></div>
             <div class="flex gap-2">
               <button onclick="addMusicFile()" class="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">+ 음악 추가</button>
@@ -3587,7 +3588,10 @@
     document.addEventListener('visibilitychange', () => {
       const audio = document.getElementById('bgmAudio');
       if (document.hidden) audio.pause();
-      else if (audioPrefs.musicOn && audio.src) audio.play().catch(() => {});
+      else {
+        syncMusicFolder();
+        if (audioPrefs.musicOn && audio.src) audio.play().catch(() => {});
+      }
       updateBgmWidget();
     });
 
@@ -3664,11 +3668,33 @@
       renderAudioSettings();
     }
 
+    // Music/Jindo in shared storage: what is put there joins the playlist, what is taken out leaves it
+    const MUSIC_DIR = '/storage/emulated/0/Music/Jindo';
+    function syncMusicFolder() {
+      callNative('makeDir', MUSIC_DIR);
+      let r = {};
+      try { r = JSON.parse(callNative('listRomFiles', MUSIC_DIR, 'mp3,ogg,m4a,aac,flac,wav,opus') || '{}'); } catch (e) {}
+      if (r.error || !r.files) return;
+      const inDir = new Set(r.files.map(f => f.path)), skipped = new Set(audioPrefs.skipped || []);
+      const had = new Set(audioPrefs.tracks.map(t => t.path)), wasEmpty = !currentTracks().length;
+      const kept = audioPrefs.tracks.filter(t => !t.path.startsWith(MUSIC_DIR + '/') || inDir.has(t.path));
+      const added = r.files.filter(f => !had.has(f.path) && !skipped.has(f.path))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko')).map(f => ({ path: f.path, name: baseName(f.path) }));
+      if (!added.length && kept.length === audioPrefs.tracks.length) return;
+      audioPrefs.tracks = [...kept, ...added];
+      audioPrefs.skipped = [...skipped].filter(p => inDir.has(p));
+      saveAudio();
+      renderAudioSettings();
+      if (wasEmpty && currentTracks().length && !document.hidden) playTrack(0);
+    }
+
     function removeTrack(i) {
       const t = currentTracks()[i];
       if (!t) return;
       audioPrefs.tracks = audioPrefs.tracks.filter(x => x !== t);
-      if (!packRoot(t.path)) callNative('deleteFile', t.path);
+      // A song from Music/Jindo stays on the device; it is only left out of the playlist from now on
+      if (t.path.startsWith(MUSIC_DIR + '/')) audioPrefs.skipped = [...(audioPrefs.skipped || []), t.path];
+      else if (!packRoot(t.path)) callNative('deleteFile', t.path);
       saveAudio();
       if (i === trackIndex) playTrack(i);
       renderAudioSettings();
@@ -5112,6 +5138,7 @@
       setThemeMode('glass');
       applyGlass();
       renderDefaultBg();
+      syncMusicFolder();
       // Every settings slider shows its filled part while dragging and when shown
       const settingsEl = document.getElementById('settingsModal');
       settingsEl.addEventListener('input', e => { if (e.target.type === 'range' && !e.target.classList.contains('color-range')) setRangeFill(e.target); });
