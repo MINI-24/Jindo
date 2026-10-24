@@ -694,6 +694,11 @@
      so the wheel jumped instead of gliding for about a second after entering or leaving a folder */
   @keyframes card-in { from { translate: 0 22px; scale: 0.9; } }
   @keyframes card-fade { from { opacity: 0; } }
+  /* Settings: the page that opens slides in toward where the menu cursor went */
+  @keyframes sec-in-down { from { opacity: 0; translate: 0 18px; } }
+  @keyframes sec-in-up { from { opacity: 0; translate: 0 -18px; } }
+  .sec-in-down { animation: sec-in-down 240ms var(--ease-out); }
+  .sec-in-up { animation: sec-in-up 240ms var(--ease-out); }
   .card-enter { animation: card-in 520ms var(--ease-spring) backwards; animation-delay: var(--in-delay, 0ms); }
   .card-enter:not(.card-press) > .card-thumb { animation: card-fade 320ms ease backwards; animation-delay: var(--in-delay, 0ms); }
 
@@ -3166,6 +3171,9 @@
       updateSettingsFocus();
     }
     function switchSettingsSection(secId) {
+      // The new page slides in from the side the menu moved toward (down: from below, up: from above)
+      const btns = settingsNavButtons(), from = btns.findIndex(b => b.classList.contains('bg-white/20')), to = btns.findIndex(b => b.getAttribute('data-sec') === secId);
+      const dir = from < 0 || from === to ? '' : to > from ? 'sec-in-down' : 'sec-in-up';
       document.querySelectorAll('.settings-section').forEach(s => s.classList.add('hidden'));
       document.querySelectorAll('.settings-nav-btn').forEach(b => {
         if (b.getAttribute('data-sec') === secId) {
@@ -3175,7 +3183,11 @@
         }
       });
       const target = { 'icons': 'secIcons', 'hero': 'secHero', 'sound': 'secSound', 'anim': 'secAnim', 'roms': 'secRoms', 'api': 'secApi', 'about': 'secAbout', 'qp': 'secQp', 'backup': 'secBackup', 'silk': 'secSilk' }[secId];
-      if (target) document.getElementById(target).classList.remove('hidden');
+      if (target) {
+        const sec = document.getElementById(target);
+        sec.classList.remove('hidden', 'sec-in-down', 'sec-in-up');
+        if (dir) { void sec.offsetWidth; sec.classList.add(dir); }
+      }
       if (secId === 'silk') silkAssets ? renderSilkList() : loadSilk();
       // Font previews and the platform list are built only when their page is opened
       if (secId === 'anim') FONTS.forEach(f => { if (f[2] && f[0] !== 'system') loadGoogleFont(f[2]); });
@@ -3881,6 +3893,11 @@
       active.innerHTML = silkTab === 'icon_overlays' && overlayPack.id
         ? `<span>사용 중: <b class="text-white">${escapeHtml(overlayPack.name || overlayPack.id)}</b></span><button onclick="setOverlayPack('', {})" class="px-2.5 py-1 rounded-lg bg-white/10 font-bold">끄기</button>` : '';
       const lib = silkTab === 'library';
+      // Passing through the page (menu key held) must not rebuild 30 cards: skip when nothing it shows changed
+      const key = [silkTab, silkSort, silkView, silkShown, document.getElementById('silkSearch').value, !!silkAssets, overlayPack.id,
+        audioPrefs.soundPack, audioPrefs.musicPack, silkLib.map(x => x.id).join()].join('|');
+      if (key === renderSilkList.key && document.getElementById('silkList').children.length) return;
+      renderSilkList.key = key;
       document.getElementById('silkSort_downloads').closest('.dd-wrap, .seg-pill').classList.toggle('invisible', lib);   // the library has no store order
       if (!silkAssets && !lib) return;
       const q = document.getElementById('silkSearch').value.trim().toLowerCase();
