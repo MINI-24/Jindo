@@ -1140,12 +1140,13 @@
           <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
-            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Pictures/Jindo</b> 폴더에 넣은 사진이 자동으로 기본 배경이 돼요.</p>
+            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Pictures/Jindo</b> 폴더에 넣은 사진이 아래 목록에 나와요. 골라서 쓰세요.</p>
             <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
             <div class="flex gap-2">
               <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
               <button onclick="setDefaultBg('')" id="defaultBgClear" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">지우기</button>
             </div>
+            <div id="defaultBgFolder" class="grid grid-cols-4 gap-2"></div>
           </div>
         </div>
 
@@ -1401,7 +1402,7 @@
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">HERO 영상 폴더</h4>
-            <p class="text-[11px] text-white/60"><b class="text-white/80">Movies/Jindo</b> 폴더에 게임이나 폴더 이름과 같은 이름으로 영상을 넣으면(예: Kirby and the Forgotten Land.mp4) 그 HERO 영상이 돼요. 빼면 다시 없어져요.</p>
+            <p class="text-[11px] text-white/60">PC에서 <b class="text-white/80">Movies/Jindo</b> 폴더에 넣은 영상은 아트워크 편집(Y) > 영상 목록에 나와요. 이름은 아무거나 괜찮고, 어디에 쓸지는 거기서 고르세요.</p>
           </div>
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
@@ -2052,6 +2053,11 @@
       const path = localStorage.getItem('jindo_default_bg') || '';
       document.getElementById('defaultBgPreview').style.backgroundImage = path ? `url("${artSrc(path)}")` : 'none';
       document.getElementById('defaultBgClear').classList.toggle('hidden', !path);
+      document.getElementById('defaultBgFolder').innerHTML = folderPictures().map(f => `
+        <button onclick="setDefaultBg(this.dataset.path)" data-path="${escapeHtml(f)}" title="${escapeHtml(baseName(f))}"
+          class="aspect-video rounded-lg overflow-hidden border-2 ${f === path ? 'accent-border' : 'border-transparent'} bg-black/40">
+          <img src="${escapeHtml(fileUrl(f))}" loading="lazy" class="w-full h-full object-cover">
+        </button>`).join('');
     }
     function setDefaultBg(path) {
       const old = localStorage.getItem('jindo_default_bg');
@@ -2478,7 +2484,7 @@
         const total = all.box.length + all.hero.length + all.logo.length;
         renderSgdbResults(all);
         const names = related.length > 1 ? `${related[0].name} 외 ${related.length - 1}개 버전 · ` : '';
-        sgdbStatus(total ? `${names}${total}개` : '이미지 없음');
+        if (currentCustTab !== 'video') sgdbStatus(total ? `${names}${total}개` : '이미지 없음');   // 영상 shows its own list
       } catch (e) {
         sgdbStatus('검색 실패: ' + e.message);
       }
@@ -2542,8 +2548,19 @@
 
     function showArtResults() {
       if (silkArtPack !== null && document.getElementById('sgdbResults').querySelector('[onclick^="openSilkArt"]')) return openSilkArt(silkArtPack || undefined);
-      // 영상 has no SteamGridDB results: just the + tile (mp4 / webm / gif from the device)
+      // 영상 has no SteamGridDB results: the + tile (a file from the device) and the videos in Movies/Jindo
       if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
+      else if (currentCustTab === 'video') {
+        const vids = folderVideos();
+        sgdbStatus(vids.length ? `Movies/Jindo · ${vids.length}개` : 'PC에서 Movies/Jindo 폴더에 영상을 넣으면 여기 나와요.');
+        document.getElementById('sgdbResults').innerHTML = artAddTile() + vids.map(f => `
+          <button onclick="selectCustArt(this.dataset.url)" data-url="${escapeHtml(f)}" style="aspect-ratio:16/9"
+            class="sgdb-art pad-item relative col-span-2 rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
+            ${isVideoFile(f) ? `<video src="${escapeHtml(fileUrl(f))}#t=1" preload="metadata" muted playsinline class="w-full h-full object-cover"></video>` : `<img src="${escapeHtml(fileUrl(f))}" class="w-full h-full object-cover">`}
+            <span class="absolute left-1.5 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold truncate text-left">${escapeHtml(baseName(f))}</span>
+          </button>`).join('');
+        markAppliedSgdbArt();
+      }
       else document.getElementById('sgdbResults').innerHTML = artAddTile();
     }
 
@@ -3695,33 +3712,18 @@
       if (wasEmpty && currentTracks().length && !document.hidden) playTrack(0);
     }
 
-    // Pictures/Jindo: an image there is the default background (first by name). Movies/Jindo: a video named
-    // like a game or folder ("Kirby and the Forgotten Land.mp4") becomes its HERO video. Read on start and on return.
+    // Pictures/Jindo and Movies/Jindo (shared storage): their files are offered in the 기본 배경 list and the
+    // editor's 영상 tab; nothing is applied until it is picked there
     const BG_DIR = '/storage/emulated/0/Pictures/Jindo', VIDEO_DIR = '/storage/emulated/0/Movies/Jindo';
-    const listDir = (dir, exts) => {
+    function listDir(dir, exts) {
       callNative('makeDir', dir);
-      try { const r = JSON.parse(callNative('listRomFiles', dir, exts) || '{}'); return r.error ? null : r.files; } catch (e) { return null; }
-    };
-    const sameTitle = t => String(t || '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      try { const r = JSON.parse(callNative('listRomFiles', dir, exts) || '{}'); return r.error ? [] : r.files.map(f => f.path).sort((a, b) => a.localeCompare(b, 'ko')); } catch (e) { return []; }
+    }
+    const folderPictures = () => listDir(BG_DIR, 'png,jpg,jpeg,webp,gif');
+    const folderVideos = () => listDir(VIDEO_DIR, 'mp4,webm,mkv,mov,gif');
     function syncMediaFolders() {
-      const pics = listDir(BG_DIR, 'png,jpg,jpeg,webp,gif');
-      if (pics) {
-        const cur = localStorage.getItem('jindo_default_bg') || '';
-        const pick = pics.map(f => f.path).sort((a, b) => a.localeCompare(b, 'ko'))[0] || '';
-        if (pick && pick !== cur) setDefaultBg(pick);
-        else if (!pick && cur.startsWith(BG_DIR + '/')) setDefaultBg('');
-      }
-      const vids = listDir(VIDEO_DIR, 'mp4,webm,mkv,mov,gif');
-      if (!vids) return;
-      const byTitle = new Map(vids.map(f => [sameTitle(baseName(f.path)), f.path]));
-      let changed = false;
-      for (const it of [...games, ...platformFolders]) {
-        const v = byTitle.get(sameTitle(it.title)) || '';
-        const fromDir = (it.videoUrl || '').startsWith(VIDEO_DIR + '/');
-        if (v && it.videoUrl !== v) { const old = it.videoUrl; it.videoUrl = v; releaseArt(old); changed = true; }
-        else if (!v && fromDir) { delete it.videoUrl; changed = true; }
-      }
-      if (changed) { saveLibrary(); renderMainView(); }
+      if (isOpen('settingsModal')) renderDefaultBg();
+      if (isOpen('universalCustomModal') && currentCustTab === 'video') showArtResults();
     }
 
     function removeTrack(i) {
