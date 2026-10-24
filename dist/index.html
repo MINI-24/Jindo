@@ -4595,10 +4595,28 @@
 
     async function deletePlatform(id) {
       const p = platforms.find(x => x.id === id);
-      if (!p || !(await appAsk(`'${p.name}' 플랫폼을 지울까요?\n이 플랫폼을 쓰던 폴더와 게임은 남아요. 폴더에서 Y > 플랫폼으로 다시 골라주세요.`, true, '삭제'))) return;
+      if (!p) return;
+      // Its folders go with it (a platform makes its own folder), and their games leave the list; ROM files stay
+      const folders = platformFolders.filter(f => f.system === id);
+      const inside = games.filter(g => folders.some(f => f.platform === g.platform));
+      const msg = `'${p.name}' 플랫폼을 지울까요?`
+        + (folders.length ? `\n폴더 ${folders.map(f => `'${f.title}'`).join(', ')}도 같이 지워져요.` : '')
+        + (inside.length ? `\n안에 있는 게임 ${inside.length}개도 목록에서 빠져요. (롬 파일은 그대로예요)` : '');
+      if (!(await appAsk(msg, true, '삭제'))) return;
       platforms = platforms.filter(x => x !== p);
-      platformFolders.forEach(f => { if (f.system === id) f.system = ''; });
+      // There is always at least one folder: if this platform had them all, the first one stays without a platform
+      const keepOne = folders.length && folders.length === platformFolders.length;
+      if (keepOne) folders[0].system = '';
+      const gone = keepOne ? folders.slice(1) : folders;
+      const goneGames = games.filter(g => gone.some(f => f.platform === g.platform));
+      games = games.filter(g => !goneGames.includes(g));
+      platformFolders = platformFolders.filter(f => !gone.includes(f));
+      releaseArt(...[...gone, ...goneGames].flatMap(it => ART_FIELDS.map(k => it[k])));
       saveLibrary();
+      if (currentPlatformView !== 'all' && !getFolder(currentPlatformView)) setPlatformView('all');
+      currentSelectedIndex = Math.min(currentSelectedIndex, Math.max(0, getActiveItems().length - 1));
+      renderedCardsKey = '';
+      renderMainView();
       renderPlatformSettings();
     }
 
