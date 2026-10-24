@@ -1140,6 +1140,7 @@
           <!-- DEFAULT BACKGROUND: for games and folders that have no HERO of their own -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <h4 class="text-xs font-black uppercase tracking-wider accent-text">기본 배경</h4>
+            <p class="text-[11px] text-white/50">PC에서 <b class="text-white/80">Pictures/Jindo</b> 폴더에 넣은 사진이 자동으로 기본 배경이 돼요.</p>
             <div id="defaultBgPreview" class="w-full aspect-video max-h-48 rounded-xl bg-black/50 border border-white/10 bg-cover bg-center"></div>
             <div class="flex gap-2">
               <button onclick="pickDefaultBg()" class="flex-1 py-2.5 rounded-xl accent-bg text-black text-xs font-black">사진 선택</button>
@@ -1396,6 +1397,11 @@
         <div id="secApi" class="settings-section space-y-6 hidden">
           <div>
             <h3 class="text-lg font-black tracking-tight text-white">게임 아트 설정</h3>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+            <h4 class="text-xs font-black uppercase tracking-wider accent-text">HERO 영상 폴더</h4>
+            <p class="text-[11px] text-white/60"><b class="text-white/80">Movies/Jindo</b> 폴더에 게임이나 폴더 이름과 같은 이름으로 영상을 넣으면(예: Kirby and the Forgotten Land.mp4) 그 HERO 영상이 돼요. 빼면 다시 없어져요.</p>
           </div>
 
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
@@ -3590,6 +3596,7 @@
       if (document.hidden) audio.pause();
       else {
         syncMusicFolder();
+        syncMediaFolders();
         if (audioPrefs.musicOn && audio.src) audio.play().catch(() => {});
       }
       updateBgmWidget();
@@ -3686,6 +3693,35 @@
       saveAudio();
       renderAudioSettings();
       if (wasEmpty && currentTracks().length && !document.hidden) playTrack(0);
+    }
+
+    // Pictures/Jindo: an image there is the default background (first by name). Movies/Jindo: a video named
+    // like a game or folder ("Kirby and the Forgotten Land.mp4") becomes its HERO video. Read on start and on return.
+    const BG_DIR = '/storage/emulated/0/Pictures/Jindo', VIDEO_DIR = '/storage/emulated/0/Movies/Jindo';
+    const listDir = (dir, exts) => {
+      callNative('makeDir', dir);
+      try { const r = JSON.parse(callNative('listRomFiles', dir, exts) || '{}'); return r.error ? null : r.files; } catch (e) { return null; }
+    };
+    const sameTitle = t => String(t || '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    function syncMediaFolders() {
+      const pics = listDir(BG_DIR, 'png,jpg,jpeg,webp,gif');
+      if (pics) {
+        const cur = localStorage.getItem('jindo_default_bg') || '';
+        const pick = pics.map(f => f.path).sort((a, b) => a.localeCompare(b, 'ko'))[0] || '';
+        if (pick && pick !== cur) setDefaultBg(pick);
+        else if (!pick && cur.startsWith(BG_DIR + '/')) setDefaultBg('');
+      }
+      const vids = listDir(VIDEO_DIR, 'mp4,webm,mkv,mov,gif');
+      if (!vids) return;
+      const byTitle = new Map(vids.map(f => [sameTitle(baseName(f.path)), f.path]));
+      let changed = false;
+      for (const it of [...games, ...platformFolders]) {
+        const v = byTitle.get(sameTitle(it.title)) || '';
+        const fromDir = (it.videoUrl || '').startsWith(VIDEO_DIR + '/');
+        if (v && it.videoUrl !== v) { const old = it.videoUrl; it.videoUrl = v; releaseArt(old); changed = true; }
+        else if (!v && fromDir) { delete it.videoUrl; changed = true; }
+      }
+      if (changed) { saveLibrary(); renderMainView(); }
     }
 
     function removeTrack(i) {
@@ -5139,6 +5175,7 @@
       applyGlass();
       renderDefaultBg();
       syncMusicFolder();
+      syncMediaFolders();
       // Every settings slider shows its filled part while dragging and when shown
       const settingsEl = document.getElementById('settingsModal');
       settingsEl.addEventListener('input', e => { if (e.target.type === 'range' && !e.target.classList.contains('color-range')) setRangeFill(e.target); });
