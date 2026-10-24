@@ -3046,6 +3046,8 @@
       // An open dropdown floats out of its box: keep its button and the whole list (at full height) on screen
       const list = el.closest('.dd-list');
       if (list) {
+        revealEl(el, 6);   // the list scrolls itself too: keep the focused option in it
+
         const wr = list.parentElement.getBoundingClientRect();
         const h = 6 + Math.min(list.scrollHeight, 288);
         r = list.parentElement.classList.contains('dd-up') ? { top: wr.top - h, bottom: wr.bottom, height: 0 } : { top: wr.top, bottom: wr.bottom + h, height: 0 };
