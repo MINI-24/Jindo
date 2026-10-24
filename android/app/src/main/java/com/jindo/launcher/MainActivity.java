@@ -1130,6 +1130,50 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
+        // A small still (JPEG, 384 px wide) of a video or GIF for pick lists, made once and kept in artwork/.thumbs;
+        // showing the videos themselves started a decoder per tile. Result via window.onNativeJob: {"path"} or {"error"}.
+        @JavascriptInterface
+        public void mediaThumb(final String id, final String path) {
+            final MainActivity activity = (MainActivity) context;
+            new Thread(() -> {
+                try {
+                    File src = new File(path);
+                    File dir = new File(activity.dataDir("art"), ".thumbs");
+                    if (!dir.isDirectory() && !dir.mkdirs()) throw new Exception("thumbs folder");
+                    File out = new File(dir, Integer.toHexString((src.getAbsolutePath() + "|" + src.length() + "|" + src.lastModified() + "|mid").hashCode()) + ".jpg");
+                    if (!out.isFile()) {
+                        Bitmap b;
+                        if (path.toLowerCase().endsWith(".gif")) {
+                            b = android.graphics.BitmapFactory.decodeFile(path);
+                        } else {
+                            android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+                            try {
+                                r.setDataSource(path);
+                                // The middle of the clip: the first seconds are often a black fade-in
+                                long ms = 0;
+                                try { ms = Long.parseLong(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)); } catch (Exception ignored) {}
+                                b = r.getFrameAtTime(Math.max(1000000L, ms * 500L), android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                                if (b == null) b = r.getFrameAtTime();
+                            } finally {
+                                r.release();
+                            }
+                        }
+                        if (b == null) throw new Exception("no frame");
+                        int w = 384, h = Math.max(1, Math.round(b.getHeight() * 384f / b.getWidth()));
+                        Bitmap s = Bitmap.createScaledBitmap(b, w, h, true);
+                        if (s != b) b.recycle();
+                        try (java.io.OutputStream o = new java.io.FileOutputStream(out)) {
+                            s.compress(Bitmap.CompressFormat.JPEG, 82, o);
+                        }
+                        s.recycle();
+                    }
+                    activity.notifyJob(id, new JSONObject().put("path", out.getAbsolutePath()).toString());
+                } catch (Throwable e) {
+                    activity.notifyJob(id, "{\"error\":" + JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                }
+            }).start();
+        }
+
         @JavascriptInterface
         public void httpGet(final String id, final String url) {
             final MainActivity activity = (MainActivity) context;

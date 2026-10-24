@@ -2561,15 +2561,18 @@
       // 영상 has no SteamGridDB results: the + tile (a file from the device) and the videos in files/Background_Video
       if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
       else if (currentCustTab === 'video') {
-        const vids = folderVideos();
+        // The one named like this game or folder first
+        const cur = getActiveItems()[currentSelectedIndex], want = sameTitle(cur && cur.title);
+        const vids = folderVideos().sort((a, b) => (sameTitle(baseName(b)) === want) - (sameTitle(baseName(a)) === want));
         sgdbStatus(vids.length ? `Background_Video · ${vids.length}개` : '');
         document.getElementById('sgdbResults').innerHTML = artAddTile() + vids.map(f => `
           <button onclick="selectCustArt(this.dataset.url)" data-url="${escapeHtml(f)}" style="aspect-ratio:16/9"
             class="sgdb-art pad-item relative col-span-2 rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
-            ${isVideoFile(f) ? `<video src="${escapeHtml(fileUrl(f))}#t=1" preload="metadata" muted playsinline class="w-full h-full object-cover"></video>` : `<img src="${escapeHtml(fileUrl(f))}" class="w-full h-full object-cover">`}
+            <img data-thumb="${escapeHtml(f)}" alt="" class="w-full h-full object-cover opacity-0 transition-opacity duration-300">
             <span class="absolute left-1.5 bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold truncate text-left">${escapeHtml(baseName(f))}</span>
           </button>`).join('');
         markAppliedSgdbArt();
+        fillThumbs(document.getElementById('sgdbResults'));
       }
       else document.getElementById('sgdbResults').innerHTML = artAddTile();
     }
@@ -3747,6 +3750,7 @@
       try { const r = JSON.parse(callNative('listRomFiles', dir, exts) || '{}'); return r.error ? [] : r.files.map(f => f.path).sort((a, b) => a.localeCompare(b, 'ko')); } catch (e) { return []; }
     }
     const folderPictures = () => listDir(BG_DIR, 'png,jpg,jpeg,webp,gif');
+    const sameTitle = t => String(t || '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     const folderVideos = () => listDir(VIDEO_DIR, 'mp4,webm,mkv,mov,gif');
     // Reads BGM / Basic_Background / Background_Video again (files copied from a PC while the launcher stayed open)
     function refreshFolders() {
@@ -3755,6 +3759,16 @@
       if (isOpen('universalCustomModal') && currentCustTab === 'video') showArtResults();
       const icon = document.querySelector('#refreshFoldersBtn svg');
       icon.classList.remove('spin-once'); void icon.offsetWidth; icon.classList.add('spin-once');
+    }
+    // Still pictures for video / GIF tiles, made natively one at a time (playing every tile lagged badly)
+    const thumbCache = {};
+    async function fillThumbs(root) {
+      for (const img of root.querySelectorAll('img[data-thumb]')) {
+        const f = img.dataset.thumb;
+        if (!thumbCache[f]) { const r = await nativeJob('mediaThumb', f); if (r.path) thumbCache[f] = r.path; }
+        if (!img.isConnected) return;   // the list was redrawn meanwhile
+        if (thumbCache[f]) { img.onload = () => img.classList.remove('opacity-0'); img.src = fileUrl(thumbCache[f]); }
+      }
     }
     function syncMediaFolders() {
       callNative('makeDir', BG_DIR); callNative('makeDir', VIDEO_DIR);   // all three folders exist from the start
