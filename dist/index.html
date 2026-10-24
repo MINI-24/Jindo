@@ -1310,12 +1310,16 @@
 <!-- SEC API -->
         <div id="secSilk" class="settings-section space-y-6 hidden">
           <div>
-            <h3 class="text-lg font-black tracking-tight">Silk Pod</h3>
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg font-black tracking-tight">Silk Pod</h3>
+              <button id="silkLibBtn" onclick="setSilkTab(silkTab === 'library' ? (setSilkTab.prev || 'sounds') : 'library')" title="내 라이브러리" class="icon-btn !w-9 !h-9">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 19V5M9 19V5M14 19l-2-14M19 19l-4-13"/></svg>
+              </button>
+            </div>
           </div>
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <div class="flex items-center gap-2">
               <div class="seg-pill flex-1">
-                <div onclick="setSilkTab('library')" id="silkTab_library" class="seg-option">내 라이브러리</div>
                 <div onclick="setSilkTab('sounds')" id="silkTab_sounds" class="seg-option">사운드</div>
                 <div onclick="setSilkTab('music')" id="silkTab_music" class="seg-option">음악</div>
                 <div onclick="setSilkTab('icon_overlays')" id="silkTab_icon_overlays" class="seg-option">아이콘 오버레이</div>
@@ -1526,18 +1530,18 @@
       </div>
 
       <div class="flex-1 min-h-0 flex gap-3">
-        <div class="w-56 flex-shrink-0 flex flex-col gap-2.5 min-h-0 overflow-y-auto p-1.5 -m-1.5 text-xs">
+        <div class="w-56 flex-shrink-0 flex flex-col gap-2.5 min-h-0 p-1.5 -m-1.5 text-xs">
           <div id="newGamePicked" class="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/40 border border-white/10 min-h-[60px]"></div>
           <div>
             <label class="block font-bold text-white/60 mb-1">이름</label>
             <input type="text" id="newGameTitle" class="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/15 font-bold focus:outline-none accent-focus">
           </div>
           <div>
-            <label class="block font-bold text-white/60 mb-1">넣을 폴더</label>
-            <div id="newGamePlatforms" class="grid grid-cols-2 gap-1.5">
-            </div>
+            <label class="block font-bold text-white/60 mb-1">카테고리</label>
+            <div id="newGamePlatforms" class="seg-pill w-full"></div>
           </div>
           <button onclick="saveNewGame()" class="mt-auto w-full py-2.5 rounded-xl accent-bg font-black">추가</button>
+          <button onclick="saveNewGame('__home')" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 font-black">메인화면에 추가</button>
         </div>
 
         <div class="flex-1 min-w-0 min-h-0 overflow-y-auto rounded-2xl bg-black/30 border border-white/5">
@@ -3013,7 +3017,7 @@
       document.querySelectorAll('.dd-wrap.open').forEach(w => { if (w !== wrap) w.classList.remove('open'); });
       if (show) {
         // Open upward when the list would run past the bottom of its scroll area and there is more room above
-        const area = wrap.closest('#settingsContentPanel') || document.documentElement, list = wrap.querySelector('.dd-list');
+        const area = wrap.closest('#settingsContentPanel, .modal > div') || document.documentElement, list = wrap.querySelector('.dd-list');
         const ar = area === document.documentElement ? { top: 0, bottom: innerHeight } : area.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
         const below = ar.bottom - wr.bottom + (area.scrollHeight - area.scrollTop - area.clientHeight || 0), above = wr.top - ar.top;
         const need = Math.min(list ? list.scrollHeight : 0, 288) + 12;
@@ -3384,11 +3388,10 @@
     function openNewGameModal(platform, pickPkg) {
       newGameApp = null;
       document.getElementById('newGameTitle').value = '';
-      document.getElementById('newGamePlatforms').innerHTML = `
-        <button onclick="setNewGamePlatform('__home')" data-plat="__home" class="col-span-2 py-1.5 px-1 rounded-lg bg-white/10 font-bold truncate">메인화면</button>` + platformFolders.filter(f => !f.packageName).map(f => `
-        <button onclick="setNewGamePlatform(this.dataset.plat)" data-plat="${escapeHtml(f.platform)}" class="py-1.5 px-1 rounded-lg bg-white/10 font-bold truncate">${escapeHtml(f.title)}</button>`).join('');
+      document.getElementById('newGamePlatforms').innerHTML = platformFolders.filter(f => !f.packageName && !f.shortcut).map(f => `
+        <div onclick="setNewGamePlatform(this.dataset.plat)" data-plat="${escapeHtml(f.platform)}" class="seg-option">${escapeHtml(f.title)}</div>`).join('');
       const appsFolder = platformFolders.find(f => (platforms.find(p => p.id === f.system) || {}).system === 'apps') || platformFolders[0];
-      setNewGamePlatform(platform === '__home' ? '__home' : platform && platform !== 'all' ? platform : appsFolder.platform);
+      setNewGamePlatform(platform && platform !== 'all' && platform !== '__home' && getFolder(platform) ? platform : appsFolder.platform);
       newGameApps = [...installedDeviceApps].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       document.getElementById('newGameAppGrid').innerHTML = newGameApps.length
         ? newGameApps.map((a, i) => `
@@ -3424,11 +3427,7 @@
 
     function setNewGamePlatform(plat) {
       newGamePlatform = plat;
-      document.querySelectorAll('#newGamePlatforms button').forEach(b => {
-        const on = b.dataset.plat === plat;
-        b.classList.toggle('accent-bg', on);
-        b.classList.toggle('bg-white/10', !on);
-      });
+      document.querySelectorAll('#newGamePlatforms .seg-option').forEach(b => b.classList.toggle('active', b.dataset.plat === plat));
     }
 
     function pickNewGameApp(i) {
@@ -3468,13 +3467,13 @@
       });
     }
 
-    async function saveNewGame() {
+    async function saveNewGame(where) {
       if (!newGameApp) return alert('추가할 앱을 골라주세요.');
       const title = document.getElementById('newGameTitle').value.trim() || newGameApp.name;
       const sc = newGameApp.shortcut;
       if (sc && !callNative('acceptPinShortcut', sc.token)) return alert('바로가기를 추가하지 못했어요. 앱에서 다시 시도해주세요.');
       if (sc) newGameApp.shortcut = null;   // accepted: closing must not reject it
-      if (newGamePlatform === '__home') {
+      if (where === '__home') {
         // A home tile: an app (or shortcut) next to the folders; A starts it instead of opening a folder
         const key = 'app' + Date.now();
         platformFolders.push({ id: key, platform: key, system: '', title, packageName: newGameApp.packageName,
@@ -3916,6 +3915,7 @@
       renderSilkList();
     }
     function setSilkTab(tab) {
+      if (tab !== 'library') setSilkTab.prev = tab;   // the store category to come back to
       silkTab = tab;
       silkShown = 30;
       renderSilkList();
@@ -3931,7 +3931,8 @@
       list: '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="4" rx="1"/><rect x="3" y="10" width="5" height="4" rx="1"/><rect x="3" y="16" width="5" height="4" rx="1"/><path d="M11 6h10M11 12h10M11 18h10"/></svg>'
     };
     function renderSilkList() {
-      ['library', 'sounds', 'music', 'icon_overlays', 'smart_folders'].forEach(t => document.getElementById('silkTab_' + t).classList.toggle('active', t === silkTab));
+      ['sounds', 'music', 'icon_overlays', 'smart_folders'].forEach(t => document.getElementById('silkTab_' + t).classList.toggle('active', t === (silkTab === 'library' ? setSilkTab.prev || 'sounds' : silkTab)));
+      document.getElementById('silkLibBtn').classList.toggle('primary', silkTab === 'library');
       ['downloads', 'likes', 'dateAdded', 'dateUpdated'].forEach(t => document.getElementById('silkSort_' + t).classList.toggle('active', t === silkSort));
       document.getElementById('silkViewBtn').innerHTML = SILK_VIEW_ICON[silkView];
       const active = document.getElementById('silkActive');
@@ -5027,8 +5028,10 @@
     function padHandleKey(root, key, close) {
       const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
       const openList = padEl && padEl.closest('.group-list.open');
+      const openDd = root.querySelector('.dd-wrap.open');
       if (key === 'B') {
         if (typing) document.activeElement.blur();
+        else if (openDd) { toggleDropdown(openDd, false); padSetFocus(openDd.querySelector('.dd-btn')); }
         else if (openList) {
           // B closes an open folder-edit list first, back on the row that opened it
           const fn = openList.id === 'folderEditPlatforms' ? 'toggleGroupList' : 'toggleLayoutList';
@@ -5292,6 +5295,7 @@
       renderAudioSettings();
       applyFont();
       enhanceChoiceGroups(document.getElementById('settingsModal'));
+      enhanceChoiceGroups(document.getElementById('newGameModal'));
       applyQpPrefs();
       renderTopBar();
       playTrack(0);
