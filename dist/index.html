@@ -1099,15 +1099,14 @@
 
           <!-- 1. VIEW LAYOUT -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-black uppercase tracking-wider accent-text">화면 레이아웃</h4>
-            </div>
-            
-            <div class="seg-pill">
-              <div onclick="setLayout('horizontal')" id="btnLayH" class="seg-option active">가로</div>
-              <div onclick="setLayout('grid2')" id="btnLayG2" class="seg-option">2행</div>
-              <div onclick="setLayout('grid3')" id="btnLayG3" class="seg-option">3행</div>
-              <div onclick="setLayout('list')" id="btnLayV" class="seg-option">세로 목록</div>
+            <div class="flex items-center gap-3">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">화면 레이아웃</h4>
+              <div class="seg-pill w-56">
+                <div onclick="setLayout('horizontal')" id="btnLayH" class="seg-option active">가로</div>
+                <div onclick="setLayout('grid2')" id="btnLayG2" class="seg-option">2행</div>
+                <div onclick="setLayout('grid3')" id="btnLayG3" class="seg-option">3행</div>
+                <div onclick="setLayout('list')" id="btnLayV" class="seg-option">세로 목록</div>
+              </div>
             </div>
 
             <div class="rounded-2xl bg-black/60 border border-white/10 p-4 flex flex-col items-center justify-center">
@@ -1137,12 +1136,9 @@
           </div>
 
           <!-- 3. FOCUS STYLE -->
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-black uppercase tracking-wider accent-text">커서 포커스 스타일</h4>
-            </div>
-
-            <div class="seg-pill">
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+            <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">커서 포커스 스타일</h4>
+            <div class="seg-pill w-56">
               <div onclick="setCursorStylePill('corners')" id="curPillCorners" class="seg-option active">모서리</div>
               <div onclick="setCursorStylePill('glow')" id="curPillGlow" class="seg-option">글로우</div>
               <div onclick="setCursorStylePill('border')" id="curPillBorder" class="seg-option">테두리</div>
@@ -1155,12 +1151,9 @@
             <h3 class="text-lg font-black tracking-tight">배경 및 정보 표시</h3>
           </div>
 
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-            <div class="flex items-center justify-between">
-              <h4 class="text-xs font-black uppercase tracking-wider accent-text">배경 스타일</h4>
-            </div>
-
-            <div class="seg-pill">
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3">
+            <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">배경 스타일</h4>
+            <div class="seg-pill w-56">
               <div onclick="setHeroStylePill('vignette')" id="heroPillVignette" class="seg-option active">비네트</div>
               <div onclick="setHeroStylePill('fullscreen')" id="heroPillFullscreen" class="seg-option">원본</div>
             </div>
@@ -1245,9 +1238,9 @@
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
             <div class="flex items-center gap-2">
               <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">글꼴</h4>
+              <div id="fontOptions" class="seg-pill w-56"></div>
               <button onclick="addFontFile()" title="파일에서 추가"  class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
             </div>
-            <div id="fontOptions" class="seg-pill"></div>
           </div>
 
           <!-- ACCENT HIGHLIGHT COLOR PICKER -->
@@ -1429,33 +1422,25 @@
             <h3 class="text-lg font-black tracking-tight text-white">기기 정보</h3>
           </div>
 
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <div class="flex items-center justify-between py-1.5 border-b border-white/10">
-              <span class="text-xs text-white/60">런처 버전</span>
+          <div class="px-5 py-2 rounded-2xl bg-white/5 border border-white/10 divide-y divide-white/10">
+            <div class="flex items-center gap-3 min-h-[52px] py-2">
+              <span class="flex-1 text-xs text-white/60">런처 버전</span>
               <span class="text-xs font-bold accent-text" id="appVersionLabel"></span>
             </div>
-            <div class="flex items-center justify-between py-1.5">
-              <span class="text-xs text-white/60">대상 기기</span>
+            <div class="flex items-center gap-3 min-h-[52px] py-2">
+              <span class="text-xs text-white/60">업데이트</span>
+              <span id="updateStatus" class="flex-1 text-right text-xs text-white/70 truncate"></span>
+              <button onclick="installUpdate()" id="updateInstallBtn" title="설치" class="hidden icon-btn primary relative overflow-hidden"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
+              <button onclick="checkUpdate()" id="updateCheckBtn" title="업데이트 확인" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+            </div>
+            <div class="flex items-center gap-3 min-h-[52px] py-2">
+              <span class="flex-1 text-xs text-white/60">대상 기기</span>
               <span class="text-xs font-bold text-white">AYN Odin 3</span>
             </div>
-          </div>
-
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider accent-text">업데이트</h4>
-            <div class="flex items-center gap-3">
-              <button onclick="checkUpdate()" id="updateCheckBtn" title="업데이트 확인" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
-              <span id="updateStatus" class="flex-1 text-xs text-white/70"></span>
-              <button onclick="installUpdate()" id="updateInstallBtn" class="hidden relative overflow-hidden px-4 py-2 rounded-xl accent-bg text-black text-xs font-black">설치</button>
+            <div class="flex items-center gap-3 min-h-[52px] py-2">
+              <span class="flex-1 text-xs text-white/60">안드로이드 본체 설정</span>
+              <button onclick="if(window.JindoNative) window.JindoNative.openSettings()" title="본체 설정 열기" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></button>
             </div>
-          </div>
-
-          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-            <div>
-              <h4 class="text-sm font-bold text-white">안드로이드 본체 설정</h4>
-            </div>
-            <button onclick="if(window.JindoNative) window.JindoNative.openSettings()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all whitespace-nowrap">
-              본체 설정 열기
-            </button>
           </div>
         </div>
 
@@ -4437,14 +4422,14 @@
     }
     async function installUpdate() {
       if (!updateAsset) return;
-      const btn = document.getElementById('updateInstallBtn'), url = updateAsset.browser_download_url;
-      btn.textContent = '받는 중...';
+      // The button stays an icon; progress shows in the status text beside it
+      const status = document.getElementById('updateStatus'), url = updateAsset.browser_download_url;
+      status.textContent = '받는 중...';
       const prev = window.onArtProgress;
-      window.onArtProgress = (u, pct) => { if (u === url) btn.textContent = pct + '%'; else if (prev) prev(u, pct); };
+      window.onArtProgress = (u, pct) => { if (u === url) status.textContent = `받는 중 ${pct}%`; else if (prev) prev(u, pct); };
       const r = await nativeJob('installUpdate', url);
       window.onArtProgress = prev;
-      btn.textContent = r.error ? '다시 시도' : '설치';
-      if (r.error) document.getElementById('updateStatus').textContent = '실패: ' + r.error;
+      status.textContent = r.error ? '실패: ' + r.error : '설치 화면을 열었어요';
     }
 
     function toggleDockAutoHide(enabled) {
