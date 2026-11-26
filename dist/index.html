@@ -504,10 +504,26 @@
   }
   #gameCardsContainer .liquid-glass-card { width: calc(var(--thumb-w) + 20px); flex-shrink: 0; }
   #gameCardsContainer .card-thumb { width: var(--thumb-w); height: var(--thumb-h); }
+  #gameCardsContainer .liquid-glass-card.card-wide { width: calc(var(--thumb-h) * 16 / 9 + 20px) !important; }
+  #gameCardsContainer .liquid-glass-card.card-wide .card-thumb { width: calc(var(--thumb-h) * 16 / 9) !important; }
   /* Icon overlay packs are square (1024x1024) but cards are 2:3: mask and frame are 9-sliced, so corners and
      badges keep their own ratio at the card's width and only the plain middle of the sides stretches */
-  .ov-mask { -webkit-mask-box-image-slice: 33.3% fill; -webkit-mask-box-image-width: calc(var(--thumb-w) / 3); }
-  .ov-frame { border-style: solid; border-width: 0; border-image-slice: 33.3% fill; border-image-width: calc(var(--thumb-w) / 3); }
+  .ov-mask { -webkit-mask-box-image-slice: 33.3%; -webkit-mask-box-image-width: calc(var(--thumb-w) / 3); }
+  .ov-frame { border-style: solid; border-width: 0; border-image-slice: 33.3%; border-image-width: calc(var(--thumb-w) / 3); }
+
+  /* 네모 아이콘 (3DS style): square pictures cropped from the box art, no names under them */
+  body.shape-square #gameCardsContainer { --thumb-w: var(--thumb-h); }
+  body.shape-square #gameCardsContainer .card-art { object-position: center 30%; }
+  body.shape-square #gameCardsContainer:not(.cards-list) .liquid-glass-card:not(.card-wide) > div:last-of-type { display: none; }
+  body.shape-square #gameCardsContainer:not(.cards-list) .liquid-glass-card:not(.card-wide) .card-thumb { margin-bottom: 0 !important; border-radius: 18px; }
+
+  /* 듀얼 스크린: this (small) screen shows only the list; the HERO and logo are on the big screen */
+  /* The status bar (clock, battery) moves to the big screen too; settings stay in the dock */
+  body.dual #heroWrapper, body.dual #heroLogoBox, body.dual > header { display: none; }
+  body.dual { background: radial-gradient(120% 90% at 50% 0%, #1b2233 0%, #0b0d12 70%) !important; }
+  body.dual #mainArea { justify-content: center; padding: 6px 12px 78px; }
+  /* auto-fit drops the empty columns, so the cards sit in the middle */
+  body.dual #gameCardsContainer.cards-grid { justify-content: center; grid-template-columns: repeat(auto-fit, calc(var(--thumb-w) + 20px)); }
 
   /* 세로 목록: folders/games as a list on the left, the background and logo get the rest of the screen */
   #mainArea.layout-list { flex-direction: row-reverse; justify-content: flex-start; align-items: stretch; gap: 8px; padding-left: 4px; }
@@ -516,11 +532,14 @@
   /* Cards above and below run off the screen edge instead of being cut at the column edge */
   #gameCardsViewport.list-viewport { width: min(30%, 380px); overflow: visible; clip-path: inset(-100vh -100vw -100vh 0); }
   #gameCardsContainer.cards-list { position: relative; height: 100%; padding: 0; overflow: visible; }
-  /* Every card sits on the wheel's middle line; positionWheel() moves it along the curve (--wheel) */
+  /* Every card sits on the wheel's middle line; positionWheel() moves it along the curve */
   #gameCardsContainer.cards-list .liquid-glass-card {
     position: absolute; left: 0; top: 50%; width: max-content; display: block;
-    transform-origin: left center; transform: var(--wheel) !important; opacity: var(--wheel-o, 1);
+    transform-origin: left center;
     transition: transform 340ms var(--ease-out), opacity 340ms var(--ease-out) !important;
+  }
+  #gameCardsContainer.cards-list .liquid-glass-card.focused {
+    /* Wheel layout coordinates are maintained via positionWheel() inline styles */
   }
   #gameCardsContainer.cards-list .card-thumb { margin-bottom: 0 !important; flex-shrink: 0; }
   /* The name sits under the picture (only the selected one shows it), clear of the logo on the right */
@@ -592,12 +611,54 @@
     outline-offset: 3px;
   }
   .pad-item.pad-focus { background: rgba(255, 255, 255, 0.08); }
+  /* 전체 앱: the app being moved is lifted, like Android's drag */
+  .app-moving { transform: scale(1.12) translateY(-4px); background: var(--accent-glow-subtle) !important; transition: transform 0.15s; }
 
   /* Modal Button Focus Glow */
   .modal-btn-focus {
     outline: 3px solid var(--accent-glow, #38bdf8) !important;
     transform: scale(1.04) !important;
     box-shadow: 0 0 20px var(--accent-glow, #38bdf8) !important;
+  }
+
+  /* Game Launch Transition Overlays */
+  #launchTransition {
+    position: fixed; inset: 0; z-index: 9999;
+    pointer-events: none; opacity: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+    transition: opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #launchTransition.active {
+    opacity: 1; pointer-events: auto;
+  }
+  #launchTransition .launch-bg {
+    position: absolute; inset: 0; background-size: cover; background-position: center;
+    filter: brightness(0.6);
+    transform: scale(1);
+    transition: transform 550ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #launchTransition.active.anim-zoom .launch-bg {
+    transform: scale(1.14);
+  }
+  #launchTransition .launch-logo-wrap {
+    position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    transform: scale(0.92); opacity: 0;
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms ease;
+  }
+  #launchTransition.active.anim-zoom .launch-logo-wrap {
+    transform: scale(1.06); opacity: 1;
+  }
+  #launchTransition.active.anim-fade {
+    background: #000;
+  }
+  #launchTransition.active.anim-flash {
+    animation: launchFlash 450ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes launchFlash {
+    0% { background: rgba(255, 255, 255, 0.9); box-shadow: inset 0 0 140px var(--accent-glow, #38bdf8); }
+    40% { background: rgba(0, 0, 0, 0.7); }
+    100% { background: #000; }
   }
 
   
@@ -704,6 +765,17 @@
   .icon-btn:hover { background: rgba(255, 255, 255, 0.2); }
   .icon-btn:active { transform: scale(0.92); }
   .icon-btn.primary { background: var(--accent-glow); color: #0b0d12; border-color: transparent; }
+  /* Logo placement panel (artwork editor) */
+  .logo-screen { flex: 1; min-width: 0; aspect-ratio: 16 / 9; max-height: 100%; margin: auto 0; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+    padding: 6px; gap: 4px; border-radius: 12px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.15); }
+  .logo-cell { display: flex; padding: 6px; border-radius: 8px; transition: background-color 150ms ease; }
+  .logo-cell:hover { background: rgba(255, 255, 255, 0.06); }
+  .logo-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); }
+  .logo-mark { height: 30%; min-height: 6px; border-radius: 4px; background: var(--accent-glow); box-shadow: 0 0 10px var(--accent-glow); }
+  .logo-size { flex: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); }
+  .logo-size span { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.6); }
+  .logo-size.on { background: var(--accent-glow); border-color: transparent; }
+  .logo-size.on span { background: #0b0d12; }
   /* On / off: an empty ring, filled with the accent colour when on */
   .ring-toggle { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center;
     background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); }
@@ -861,21 +933,10 @@
       <span id="bgmTitle" class="text-white/70 font-semibold truncate text-[11px] whitespace-nowrap">Jindo Lounge</span>
     </div>
 
-    <!-- Top bar: layout, sort, status (opens the quick panel), settings. Gamepad: Up from the cards, ◀ ▶, A -->
-    <div class="relative top-menu-wrap">
-      <button id="layoutButton" onclick="toggleTopMenu('layout')" title="레이아웃" class="top-btn px-2.5 rounded-full liquid-glass text-[11px] font-bold flex items-center gap-1.5 hover:bg-white/20 transition-all">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-      </button>
-      <div id="layoutMenu" class="top-menu hidden"></div>
-    </div>
-    <div class="relative top-menu-wrap">
-      <button id="sortButton" onclick="toggleTopMenu('sort')" title="정렬" class="top-btn px-2.5 rounded-full liquid-glass text-[11px] font-bold flex items-center gap-1.5 hover:bg-white/20 transition-all">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
-      </button>
-      <div id="sortMenu" class="top-menu hidden"></div>
-    </div>
+    <!-- Top bar: status (opens the quick panel), settings. Gamepad: Up from the cards, ◀ ▶, A -->
     <button id="topStatus" onclick="toggleQuickPanel()" class="top-btn flex items-center gap-2.5 px-3 rounded-full liquid-glass text-xs tabular shadow-md" title="알림창">
-      <svg class="w-4 h-4 fill-current accent-text" viewBox="0 0 24 24"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4zm0 3.5c3.74 0 7.15 1.48 9.68 3.9L12 18.73 2.32 11.4C4.85 8.98 8.26 7.5 12 7.5zm0 4c2.25 0 4.31.87 5.86 2.31L12 19.38 6.14 13.81C7.69 12.37 9.75 11.5 12 11.5z"/></svg>
+      <svg id="topWifiIcon" class="w-4 h-4 fill-current accent-text" viewBox="0 0 24 24"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4zm0 3.5c3.74 0 7.15 1.48 9.68 3.9L12 18.73 2.32 11.4C4.85 8.98 8.26 7.5 12 7.5zm0 4c2.25 0 4.31.87 5.86 2.31L12 19.38 6.14 13.81C7.69 12.37 9.75 11.5 12 11.5z"/></svg>
+      <svg id="topBtIcon" class="w-3.5 h-3.5 fill-current accent-text hidden" viewBox="0 0 24 24"><path d="M14.5 7.5 12 5V19l2.5-2.5L12 14v-4l2.5-2.5zM17.7 7.7 13.4 3.4a1 1 0 0 0-1.4 0V11H7a1 1 0 0 0 0 2h5v7.6a1 1 0 0 0 1.4 0l4.3-4.3a1 1 0 0 0 0-1.4L14.4 12l3.3-3.3a1 1 0 0 0 0-1.4z"/></svg>
       <div class="batt flex items-center gap-1.5 ">
           <div class="relative w-5 h-2.5 rounded-[3px] border border-white/80 p-[1px] flex items-center bg-black/50">
             <div class="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-[4px] bg-white/80 rounded-r-sm"></div>
@@ -996,7 +1057,8 @@
         <h2 class="text-base font-black truncate" id="custModalHeader">게임 편집</h2>
         <!-- Which image this editor is changing; each slot is set independently -->
         <div class="seg-pill ml-2">
-          <div onclick="selectCustSlot('box')" id="custSlot_box" class="seg-option !py-1.5 active">아이콘</div>
+          <div onclick="selectCustSlot('box')" id="custSlot_box" class="seg-option !py-1.5 active">세로 아이콘</div>
+          <div onclick="selectCustSlot('box_wide')" id="custSlot_box_wide" class="seg-option !py-1.5">가로 아이콘</div>
           <div onclick="selectCustSlot('hero')" id="custSlot_hero" class="seg-option !py-1.5">HERO</div>
           <div onclick="selectCustSlot('logo')" id="custSlot_logo" class="seg-option !py-1.5">로고</div>
           <div onclick="selectCustSlot('video')" id="custSlot_video" class="seg-option !py-1.5">영상</div>
@@ -1099,6 +1161,18 @@
             <h3 class="text-lg font-black tracking-tight text-white">화면 및 내비게이션 설정</h3>
           </div>
 
+          <!-- 0. SCREEN MODE: one screen, or two (AYN Thor: list below, HERO above) -->
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+            <div class="flex items-center gap-3">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">화면 모드</h4>
+              <span id="screenModeStatus" class="text-[11px] text-rose-300 font-bold"></span>
+              <div class="seg-pill w-56">
+                <div onclick="setScreenMode('single')" id="btnScrSingle" class="seg-option active">싱글</div>
+                <div onclick="setScreenMode('dual')" id="btnScrDual" class="seg-option">듀얼</div>
+              </div>
+            </div>
+          </div>
+
           <!-- 1. VIEW LAYOUT -->
           <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
             <div class="flex items-center gap-3">
@@ -1110,12 +1184,44 @@
                 <div onclick="setLayout('list')" id="btnLayV" class="seg-option">세로 목록</div>
               </div>
             </div>
+            <div class="flex items-center gap-3">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">카드 모양</h4>
+              <div class="seg-pill w-56">
+                <div onclick="setCardShape('poster')" id="btnShapePoster" class="seg-option active">포스터</div>
+                <div onclick="setCardShape('square')" id="btnShapeSquare" class="seg-option">네모</div>
+              </div>
+            </div>
 
             <div class="rounded-2xl bg-black/60 border border-white/10 p-4 flex flex-col items-center justify-center">
               <div class="text-[10px] text-white/40 mb-2 font-mono uppercase tracking-widest flex items-center gap-1.5">
                 <span>화면 미리보기</span>
               </div>
               <div id="layoutMiniPreview" class="w-full max-w-md h-24 rounded-xl bg-black/80 border border-white/15 p-2 flex flex-col justify-center gap-2 overflow-hidden shadow-inner transition-all duration-300">
+              </div>
+            </div>
+          </div>
+
+          <!-- 1b. LAUNCH TRANSITION -->
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+            <div class="flex items-center gap-3">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">게임 실행 연출</h4>
+              <div class="seg-pill w-72">
+                <div onclick="setLaunchAnim('none')" id="btnAnimNone" class="seg-option active">즉시 실행</div>
+                <div onclick="setLaunchAnim('fade')" id="btnAnimFade" class="seg-option">페이드</div>
+                <div onclick="setLaunchAnim('flash')" id="btnAnimFlash" class="seg-option">플래시</div>
+                <div onclick="setLaunchAnim('zoom')" id="btnAnimZoom" class="seg-option">시네마틱 줌</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1c. DEFAULT SORT -->
+          <div class="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+            <div class="flex items-center gap-3">
+              <h4 class="flex-1 text-xs font-black uppercase tracking-wider accent-text">게임 정렬 방식</h4>
+              <div class="seg-pill w-72">
+                <div onclick="setGlobalSort('recent')" id="btnSortRecent" class="seg-option active">최근 순</div>
+                <div onclick="setGlobalSort('name')" id="btnSortName" class="seg-option">이름 순</div>
+                <div onclick="setGlobalSort('added')" id="btnSortAdded" class="seg-option">추가한 순</div>
               </div>
             </div>
           </div>
@@ -1437,8 +1543,8 @@
               <button onclick="checkUpdate()" id="updateCheckBtn" title="업데이트 확인" class="icon-btn"><svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
             </div>
             <div class="flex items-center gap-3 min-h-[52px] py-2">
-              <span class="flex-1 text-xs text-white/60">대상 기기</span>
-              <span class="text-xs font-bold text-white">AYN Odin 3</span>
+              <span class="flex-1 text-xs text-white/60">기기</span>
+              <span id="deviceName" class="text-xs font-bold text-white"></span>
             </div>
             <div class="flex items-center gap-3 min-h-[52px] py-2">
               <span class="flex-1 text-xs text-white/60">안드로이드 본체 설정</span>
@@ -1508,6 +1614,18 @@
   </div>
 
   <!-- In-app alert / confirm (appAsk): above every other window -->
+  <!-- 전체 앱: long-press (or X) on an app -->
+  <div id="appMenuModal" class="modal fixed inset-0 z-[60] bg-black/60 flex items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none p-6" onclick="if (event.target === this) closeAppMenu()">
+    <div class="w-72 liquid-glass rounded-3xl p-5 border border-white/20 shadow-2xl flex flex-col gap-2.5">
+      <div class="flex items-center gap-3 pb-1">
+        <img id="appMenuIcon" class="w-10 h-10 rounded-xl object-cover" alt="">
+        <h3 id="appMenuTitle" class="text-sm font-bold truncate"></h3>
+      </div>
+      <button onclick="startAppMove()" class="pad-item w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">위치 이동</button>
+      <button onclick="uninstallFromMenu()" class="pad-item w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold">앱 삭제</button>
+    </div>
+  </div>
+
   <div id="appDialog" class="modal fixed inset-0 z-[90] bg-black/60 flex items-center justify-center transition-opacity duration-200 opacity-0 pointer-events-none p-6">
     <div class="w-full max-w-md liquid-glass rounded-3xl p-6 border border-white/20 shadow-2xl flex flex-col gap-5">
       <p id="appDialogText" class="text-sm font-semibold leading-relaxed whitespace-pre-line"></p>
@@ -1567,6 +1685,7 @@
             <svg class="batt-bolt hidden absolute inset-0 m-auto w-3 h-3" viewBox="0 0 24 24"><path fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
           </div>
           <span class="batt-pct text-[11px] font-bold text-white whitespace-nowrap"></span>
+          <span id="qpBatteryTemp" class="text-[11px] font-semibold text-white/50 whitespace-nowrap ml-1 hidden"></span>
         </div>
       </div>
     </div>
@@ -1609,6 +1728,14 @@
     </div>
   </div>
 
+  <!-- ================= GAME LAUNCH TRANSITION OVERLAY ================= -->
+  <div id="launchTransition">
+    <div id="launchBg" class="launch-bg"></div>
+    <div id="launchLogoWrap" class="launch-logo-wrap">
+      <img id="launchLogoImg" class="max-w-[420px] max-h-[190px] object-contain drop-shadow-2xl" />
+      <h2 id="launchTitleText" class="text-2xl font-black text-white tracking-tight drop-shadow-xl"></h2>
+    </div>
+  </div>
 
   <!-- ================= CORE LOGIC ================= -->
   <script src="esde-presets.js" defer></script>
@@ -1653,9 +1780,18 @@
     let games = [];
     try {
       games = JSON.parse(localStorage.getItem('jindo_games') || '[]');
+      games.forEach(g => {
+        if (g.boxRatio === 'wide' && !g.boxWideUrl && g.boxUrl) g.boxWideUrl = g.boxUrl;
+        delete g.boxRatio;
+      });
       const folderList = JSON.parse(localStorage.getItem('jindo_folder_list') || 'null');
-      if (folderList) platformFolders = folderList;
-      else {
+      if (folderList) {
+        platformFolders = folderList;
+        platformFolders.forEach(f => {
+          if (f.boxRatio === 'wide' && !f.boxWideUrl && f.boxUrl) f.boxWideUrl = f.boxUrl;
+          delete f.boxRatio;
+        });
+      } else {
         // Saved before folders became a list: edits to the five built-in folders, by id
         const savedFolders = JSON.parse(localStorage.getItem('jindo_folders') || '{}');
         platformFolders.forEach(f => Object.assign(f, savedFolders[f.id] || {}));
@@ -1698,8 +1834,9 @@
     try { const saved = JSON.parse(localStorage.getItem('jindo_dock') || 'null'); if (Array.isArray(saved) && saved.length) dockSlots = saved; } catch (e) {}
     function saveDock() { localStorage.setItem('jindo_dock', JSON.stringify(dockSlots)); }
 
-    let currentPlatformView = 'all';
-    let currentSelectedIndex = 0;
+    const savedLastView = localStorage.getItem('jindo_last_view') || 'all';
+    let currentPlatformView = (savedLastView === 'all' || platformFolders.some(f => f.platform === savedLastView)) ? savedLastView : 'all';
+    let currentSelectedIndex = Math.max(0, parseInt(localStorage.getItem('jindo_last_idx') || '0', 10));
     let currentDockSlotIndex = 0;
     let isDockFocused = false;
     let targetSlotIndexForAdd = null;
@@ -1710,12 +1847,13 @@
 
     // Order per view: home ('custom' = the folders' own order, or by name), each folder its own (folder.sort)
     let homeSort = localStorage.getItem('jindo_home_sort') || 'custom';
+    let defaultFolderSort = localStorage.getItem('jindo_default_sort') || 'recent';
     const SORTS_HOME = [['custom', '기본 순서'], ['name', '이름 순']];
     const SORTS_FOLDER = [['recent', '최근 플레이 순'], ['name', '이름 순'], ['added', '추가한 순']];
     function sortFor(view) {
       if (view === 'all') return homeSort;
       const f = getFolder(view);
-      return (f && f.sort) || 'recent';
+      return (f && f.sort) || defaultFolderSort;
     }
 
     function getActiveItems() {
@@ -1735,7 +1873,7 @@
 
     // Art is kept on the device: a picked web image is downloaded into the app's files/artwork/ (JindoNative.cacheImage)
     // and the item stores that file path. Replacing, clearing or deleting removes the file once nothing uses it.
-    const ART_FIELDS = ['boxUrl', 'heroUrl', 'logoUrl', 'videoUrl'];
+    const ART_FIELDS = ['boxUrl', 'boxWideUrl', 'heroUrl', 'logoUrl', 'videoUrl'];
     const isVideoFile = path => !/\.gif$/i.test(path || '') && /\.(mp4|webm|mkv|mov|m4v|3gp)$/i.test(path || '');
     function artSrc(url) {
       return url && url.startsWith('/') ? fileUrl(url) : url;
@@ -1790,7 +1928,9 @@
     // Art placeholder when an item has no image yet: the folder's color as a gradient,
     // with the app's own icon in the middle for games added from installed apps
     function artMarkup(item, extraClass) {
-      if (item.boxUrl) return `<img src="${escapeHtml(artSrc(item.boxUrl))}" decoding="async" onload="this.classList.add('art-loaded')" class="card-art w-full h-full object-cover ${extraClass || ''}" />`;
+      const isHorizontal = (currentLayout === 'horizontal');
+      const art = isHorizontal ? (item.boxWideUrl || item.boxUrl) : (item.boxUrl || item.boxWideUrl);
+      if (art) return `<img src="${escapeHtml(artSrc(art))}" decoding="async" onload="this.classList.add('art-loaded')" class="card-art w-full h-full object-cover ${extraClass || ''}" />`;
       const accent = (getFolder(item.platform) || item).accentColor || '#38bdf8';
       const icon = item.iconUrl ? `<img src="${item.iconUrl}" class="w-1/2 rounded-2xl shadow-xl">` : '';
       return `<div class="card-art w-full h-full flex items-center justify-center" style="background: linear-gradient(135deg, ${accent} 0%, #0f172a 100%)">${icon}</div>`;
@@ -1804,7 +1944,7 @@
       const container = document.getElementById('gameCardsContainer');
       const items = getActiveItems();
       const key = [currentPlatformView, currentLayout, currentCursorStyle, games.length, overlayPack.id,
-        ...items.map(i => i.id + '|' + i.title + '|' + i.boxUrl)].join('\n');
+        ...items.map(i => i.id + '|' + i.title + '|' + i.boxUrl + '|' + i.boxWideUrl)].join('\n');
       const rebuilt = key !== renderedCardsKey;
       if (rebuilt) {
         renderedCardsKey = key;
@@ -1818,6 +1958,7 @@
       document.getElementById('bottomDock').classList.toggle('active-peek', isDockFocused);
       // After a rebuild (new order, new games) the old scroll offset no longer matches the focused card
       if (rebuilt) scrollCardIntoView(currentSelectedIndex, true);
+
       // While the selection races (held key, quick taps) the background waits until it settles:
       // swapping a full-screen picture on every step was the remaining source of dropped frames
       const heroItem = items[currentSelectedIndex] || items[0];
@@ -1830,6 +1971,7 @@
     }
 
     function buildCards(container, items) {
+      cachedGridCols = 0;
       const isFolderMode = currentPlatformView === 'all';
 
       const viewport = document.getElementById('gameCardsViewport');
@@ -1848,8 +1990,9 @@
       container.innerHTML = '';
       items.forEach((item, idx) => {
         const card = document.createElement('div');
+        const isWide = (currentLayout === 'horizontal');
 
-        card.className = `liquid-glass-card card-enter cursor-${currentCursorStyle} p-2.5`;
+        card.className = `liquid-glass-card card-enter cursor-${currentCursorStyle} p-2.5 ${isWide ? 'card-wide' : ''}`;
         card.style.setProperty('--in-delay', Math.min(idx, 10) * 45 + 'ms');
 
         card.onclick = () => {
@@ -1880,7 +2023,7 @@
           const maskCss = ov && ov.mask ? `-webkit-mask-box-image-source:url('${artSrc(ov.mask)}');` : '';
           card.innerHTML = `
             <div class="card-thumb relative rounded-xl overflow-hidden mb-2 bg-black/50">
-              <div class="w-full h-full ${maskCss ? 'ov-mask' : ''}" style="${maskCss}">${artMarkup(item)}</div>
+              <div class="w-full h-full">${artMarkup(item)}</div>
               ${ov && ov.overlay ? `<div class="ov-frame absolute inset-0 pointer-events-none" style="z-index:3;border-image-source:url('${escapeHtml(artSrc(ov.overlay))}')"></div>` : ''}
             </div>
             <div class="px-1">
@@ -1894,10 +2037,8 @@
           const cTR = document.createElement('div'); cTR.className = 'corner-bracket cb-tr';
           const cBL = document.createElement('div'); cBL.className = 'corner-bracket cb-bl';
           const cBR = document.createElement('div'); cBR.className = 'corner-bracket cb-br';
-          card.appendChild(cTL);
-          card.appendChild(cTR);
-          card.appendChild(cBL);
-          card.appendChild(cBR);
+          // First in the card: the list layout styles its last element as the name
+          card.prepend(cTL, cTR, cBL, cBR);
         }
 
         container.appendChild(card);
@@ -1918,6 +2059,7 @@
     const LAYOUT_ROWS = { horizontal: 1, grid2: 2, grid3: 3 };
     const CARDS_AREA = { 1: 0.5, 2: 0.68, 3: 0.8 };   // share of the free height per row count
     function layoutCards() {
+      cachedGridCols = 0;
       const main = document.getElementById('mainArea');
       const viewport = document.getElementById('gameCardsViewport');
       const container = document.getElementById('gameCardsContainer');
@@ -1935,9 +2077,11 @@
         return;
       }
       viewport.style.width = '';
-      const areaH = Math.floor(free * CARDS_AREA[rows]);
+      // Dual screen: no HERO on this screen, so the cards get all of it
+      const areaH = Math.floor(free * (screenMode === 'dual' ? 1 : CARDS_AREA[rows]));
       viewport.style.height = areaH + 'px';
-      const CARD_CHROME = 20 + 8 + 18;   // card padding, gap under the thumb, title line
+      // card padding, gap under the thumb, title line (네모 아이콘 has no name under it)
+      const CARD_CHROME = cardShape === 'square' && currentLayout !== 'horizontal' ? 20 : 20 + 8 + 18;
       const ROW_GAP = 10, EDGE = 28;     // grid row gap, container padding (room for the focus lift)
       const thumbH = Math.floor((areaH - EDGE - (rows - 1) * ROW_GAP) / rows - CARD_CHROME);
       container.style.setProperty('--thumb-h', Math.max(70, thumbH) + 'px');
@@ -1946,12 +2090,19 @@
     new ResizeObserver(layoutCards).observe(document.getElementById('mainArea'));
 
     // Number of cards per row in the grid layouts (0 in the single-row layout)
+    let cachedGridCols = 0, cachedGridCardsLen = 0, cachedGridLayout = '';
     function gridColumns() {
       const cards = document.getElementById('gameCardsContainer').children;
       if (currentLayout === 'horizontal' || !cards.length) return 0;
       if (currentLayout === 'list') return 1;   // the wheel: up/down step one item
+      if (cachedGridCols > 0 && cachedGridLayout === currentLayout && cachedGridCardsLen === cards.length) {
+        return cachedGridCols;
+      }
       let n = 0;
       while (n < cards.length && cards[n].offsetTop === cards[0].offsetTop) n++;
+      cachedGridCols = n;
+      cachedGridCardsLen = cards.length;
+      cachedGridLayout = currentLayout;
       return n;
     }
 
@@ -1988,14 +2139,13 @@
     let lastHeroRender = 0, heroSettleTimer = null;
     function updateHeroView(item) {
       if (!item) return;
+      sendTopScreen(item);
       if (heroPreviewItem !== item) { heroPreviewItem = item; scheduleHeroPreview(item); }
 
       const logo = document.getElementById('heroLogo');
       const logoUrl = item.logoUrl || '';
-      if (logo.dataset.url !== logoUrl) {
+      if (logo && logo.dataset.url !== logoUrl) {
         logo.dataset.url = logoUrl;
-        // The new logo is decoded first, then its picture, place and fade-in change together
-        // (swapping src at once showed the old logo in the new place, then popped the new one in)
         const seq = updateHeroView.logoSeq = (updateHeroView.logoSeq || 0) + 1;
         const show = () => {
           if (seq !== updateHeroView.logoSeq) return;
@@ -2008,8 +2158,8 @@
           logo.classList.add('title-swap');
         };
         if (logoUrl) decodedImage(artSrc(logoUrl)).then(show); else show();
-        requestAnimationFrame(warmNeighbourHeroes);
-      } else applyLogoLayout(effectiveLogoLayout(item));
+        requestAnimationFrame(() => warmNeighbourHeroes(true));
+      } else if (logo) applyLogoLayout(effectiveLogoLayout(item));
 
       // No HERO of its own: the default background from Settings, else the blurred box art
       const def = !item.heroUrl && localStorage.getItem('jindo_default_bg');
@@ -2017,35 +2167,39 @@
       const fallback = !item.heroUrl && !def && !!item.boxUrl;
       if (url !== currentHeroUrl) {
         currentHeroUrl = url;
-        // Preload, then crossfade: the old image sits on a veil layer and fades out over the new one.
-        // Only opacity animates; the new image is decoded before it is shown so no blank frame appears.
-        let ready = Promise.resolve();
-        if (url) {
-          const img = new Image();
-          img.src = url;
-          ready = img.decode().catch(() => {});
-        }
-        ready.then(() => {
-          if (url !== currentHeroUrl) return;
-          const hero = document.getElementById('heroBg');
-          const prev = document.getElementById('heroBgPrev');
-          prev.style.transition = 'none';
-          prev.classList.remove('hero-fading');
-          prev.style.backgroundImage = hero.style.backgroundImage;
-          prev.style.backgroundPosition = hero.style.backgroundPosition;
-          prev.classList.toggle('is-fallback', hero.classList.contains('is-fallback'));
-          void prev.offsetWidth;
-          prev.style.transition = '';
-          hero.style.backgroundImage = url ? `url("${url.replace(/"/g, '%22')}")` : 'none';
-          hero.style.backgroundPosition = item.heroUrl && item.heroPos ? `${item.heroPos.x}% ${item.heroPos.y}%` : '';
-          hero.classList.toggle('is-fallback', fallback);
-          hero.classList.remove('hero-in');
-          void hero.offsetWidth;
-          hero.classList.add('hero-in');
-          requestAnimationFrame(() => prev.classList.add('hero-fading'));
-          // Next and previous item: decoding a 1920 px background took 35-50 ms in the frame it appeared
-          requestAnimationFrame(warmNeighbourHeroes);
-        });
+        const now = performance.now(), rapid = now - (updateHeroView.lastMove || 0) < 200;
+        updateHeroView.lastMove = now;
+        clearTimeout(updateHeroView.swapTimer);
+        updateHeroView.swapTimer = setTimeout(() => {
+          let ready = Promise.resolve();
+          if (url) {
+            const img = new Image();
+            img.src = url;
+            ready = img.decode().catch(() => {});
+          }
+          ready.then(() => {
+            if (url !== currentHeroUrl) return;
+            const hero = document.getElementById('heroBg');
+            const prev = document.getElementById('heroBgPrev');
+            if (!hero || !prev) return;
+            prev.style.transition = 'none';
+            prev.style.opacity = '0.8';
+            prev.style.backgroundImage = hero.style.backgroundImage;
+            prev.style.backgroundPosition = hero.style.backgroundPosition;
+            prev.classList.toggle('is-fallback', hero.classList.contains('is-fallback'));
+            hero.style.backgroundImage = url ? `url("${url.replace(/"/g, '%22')}")` : 'none';
+            hero.style.backgroundPosition = item.heroUrl && item.heroPos ? `${item.heroPos.x}% ${item.heroPos.y}%` : '';
+            hero.classList.toggle('is-fallback', fallback);
+            // heroBg is visible right away under prev; prev fades out so hero reveals
+            void prev.offsetWidth;
+            prev.classList.remove('hero-fading');
+            void prev.offsetWidth;
+            prev.classList.add('hero-fading');
+            prev.style.transition = '';
+            prev.style.opacity = '';
+            requestAnimationFrame(warmNeighbourHeroes);
+          });
+        }, rapid ? 180 : 0);
       }
     }
 
@@ -2087,9 +2241,12 @@
       }
       return decodedCache.get(url);
     }
-    function warmNeighbourHeroes() {
+    function warmNeighbourHeroes(logosOnly) {
       const items = getActiveItems(), n = items.length;
       [1, -1, 2, -2].forEach(d => { const it = n > 1 ? items[(currentSelectedIndex + d + n) % n] : null; if (it && it.logoUrl) decodedImage(artSrc(it.logoUrl)); });
+      // Swapping these full-screen layers on every step of a held key starved the GPU: a frame then
+      // came out without the dark overlays and flashed bright
+      if (logosOnly === true) return;
       [1, -1].forEach((d, i) => {
         const it = n > 1 ? items[(currentSelectedIndex + d + n) % n] : null;
         const url = it && it.heroUrl ? artSrc(it.heroUrl) : '';
@@ -2101,6 +2258,7 @@
 
     function selectItem(idx, repeat = false) {
       currentSelectedIndex = idx;
+      localStorage.setItem('jindo_last_idx', idx);
       isDockFocused = false;
       renderMainView();
       scrollCardIntoView(idx, false, repeat);
@@ -2159,8 +2317,11 @@
         const key = (a > 3 ? 'far' + Math.sign(d) : d + '|' + NAME) + '|' + h;
         if (card._wheel === key) return;
         card._wheel = key;
-        card.style.setProperty('--wheel', `translate(${x}px, calc(-50% + ${Math.round(y - NAME / 2)}px)) scale(${scaleAt(a)})`);
-        card.style.setProperty('--wheel-o', a === 0 ? 1 : a > 3 ? 0 : 0.55 - (a - 1) * 0.18);
+        const scaleVal = a === 0 ? 1.08 : scaleAt(a);
+        const transformVal = `translate(${x}px, calc(-50% + ${Math.round(y - NAME / 2)}px)) scale(${scaleVal})`;
+        const opacityVal = a === 0 ? '1' : a > 3 ? '0' : String(0.55 - (a - 1) * 0.18);
+        card.style.setProperty('transform', transformVal, 'important');
+        card.style.setProperty('opacity', opacityVal, 'important');
         card.style.zIndex = 10 - Math.min(a, 9);
         // Far cards are only transparent (not hidden), so their pictures stay decoded for when they come back
         card.style.pointerEvents = a > 3 ? 'none' : '';
@@ -2211,6 +2372,7 @@
       if (keySound === 'select' || keySound === 'back') setKeySound(plat === 'all' ? 'folder_close' : 'folder_open');
       const from = currentPlatformView;
       currentPlatformView = plat;
+      localStorage.setItem('jindo_last_view', plat);
       const sound = keySound;
       applyActiveLayout();
       keySound = sound;   // the folder sound wins over the layout sound
@@ -2218,6 +2380,7 @@
       renderTopBar();
       // Back out of a folder: the cursor lands on that folder, not the first one
       currentSelectedIndex = plat === "all" ? Math.max(0, getActiveItems().findIndex(x => x && x.platform === from)) : 0;
+      localStorage.setItem('jindo_last_idx', currentSelectedIndex);
       isDockFocused = false;
 
       // Old cards sink out first (cards-leave), then the new list is built and staggers in
@@ -2291,10 +2454,17 @@
       const slot = dockSlots[idx];
       if (slot.isDrawer) {
         openAllAppsDrawer();
+      } else if (slot.iconType === 'settings' || (!slot.pkg && slot.name === '설정')) {
+        callNative('openSettings');
       } else {
-        launchApp(slot.pkg || slot.name);
+        // Built-in and old saved slots carry no package, and their names ("Google Play") are not the app labels ("Play 스토어")
+        const pkg = slot.pkg || DOCK_PACKAGES[slot.iconType] || DOCK_PACKAGES[slot.name] || slot.name;
+        if (!callNative('launchApp', pkg)) launchApp(slot.name);
       }
     }
+    // By icon type, or by the name an old saved slot kept
+    const DOCK_PACKAGES = { chrome: 'com.android.chrome', obtainium: 'dev.imranr.obtainium', playstore: 'com.android.vending',
+      'Chrome': 'com.android.chrome', 'Obtainium': 'dev.imranr.obtainium', 'Google Play': 'com.android.vending' };
 
     function onEmptySlotClicked(idx) {
       targetSlotIndexForAdd = idx;
@@ -2383,6 +2553,7 @@
       padFocusFirst(drawer, '.pad-item');
     }
     function closeAllAppsDrawer() {
+      if (appMoving) endAppMove();
       document.getElementById('allAppsDrawerModal').classList.add('pointer-events-none', 'opacity-0');
       targetSlotIndexForAdd = null;
       document.getElementById('allAppsHeaderPrompt').innerText = "전체 앱";
@@ -2392,6 +2563,18 @@
       console.log("[Launch]", name);
     }
 
+    function cleanSearchTitle(raw) {
+      if (!raw) return '';
+      return raw
+        .replace(/\.[a-zA-Z0-9]{2,4}$/, '')     // extensions (.nsp, .xci, .iso, .zip, etc.)
+        .replace(/\[[^\]]*\]/g, ' ')            // [tags]
+        .replace(/\([^)]*\)/g, ' ')            // (tags)
+        .replace(/\bv\d+(\.\d+)*\b/gi, ' ')     // version tags (v1.0.1)
+        .replace(/[-_]+/g, ' ')                // separators
+        .replace(/\s+/g, ' ')                  // normalize whitespace
+        .trim() || raw;
+    }
+
     // Universal Customizer
     function openUniversalCustomizer() {
       const items = getActiveItems();
@@ -2399,13 +2582,13 @@
       if (!current || current.isAdd) return;
 
       document.getElementById('custModalHeader').innerText = '아트워크';
-      document.getElementById('custItemTitle').value = current.title;
+      const cleanTitle = cleanSearchTitle(current.title);
+      document.getElementById('custItemTitle').value = cleanTitle;
 
-      sgdbGameId = null;
       lastSgdbResults = null;
       document.getElementById('sgdbResults').innerHTML = artAddTile();
       sgdbStatus('');
-      selectCustSlot('box');
+      selectCustSlot(currentLayout === 'horizontal' ? 'box_wide' : 'box');
       const modal = document.getElementById('universalCustomModal');
       modal.classList.remove('pointer-events-none', 'opacity-0');
       padFocusFirst(modal, '[onclick="searchSteamGridDB()"]');
@@ -2413,21 +2596,21 @@
       if (localStorage.getItem('jindo_sgdb_key')) searchSteamGridDB();
     }
 
-    // Slot being edited: 'box' (card icon), 'hero' (background) or 'logo'. The preview, address field,
-    // file upload and any SteamGridDB image picked all go to this slot.
+    // Slot being edited: 'box' (portrait icon), 'box_wide' (wide icon), 'hero' (background) or 'logo'.
     function selectCustSlot(slot) {
       currentCustTab = slot;
-      ['box', 'hero', 'logo', 'video'].forEach(s => document.getElementById('custSlot_' + s).classList.toggle('active', s === slot));
+      ['box', 'box_wide', 'hero', 'logo', 'video'].forEach(s => {
+        const el = document.getElementById('custSlot_' + s);
+        if (el) el.classList.toggle('active', s === slot);
+      });
       renderLiveSteamGridGallery();
       showArtResults();
     }
 
     // ===== SteamGridDB artwork search =====
     // Requests go through the native bridge (the API sends no CORS headers); replies come back via onSgdbResult.
-    let sgdbGameId = null;     // the search the results on screen belong to
     const sgdbCache = {};
     const sgdbPending = {};
-    // All three kinds are fetched together and shown in one list; each image applies to its own slot.
     const SGDB_ENDPOINTS = {
       box: id => `/grids/game/${id}`,
       hero: id => `/heroes/game/${id}`,
@@ -2442,11 +2625,11 @@
     function sgdbFetch(path, key) {
       return new Promise((resolve, reject) => {
         key = key || localStorage.getItem('jindo_sgdb_key');
-        if (!key) return reject(new Error('API 키가 없어요'));
+        if (!key && !path.startsWith('http')) return reject(new Error('API 키가 없어요'));
         if (!window.JindoNative || !window.JindoNative.sgdbRequest) return reject(new Error('기기에서만 검색할 수 있어요'));
         const id = 'sg' + Date.now() + Math.random().toString(36).slice(2);
         sgdbPending[id] = { resolve, reject };
-        window.JindoNative.sgdbRequest(id, path, key);
+        window.JindoNative.sgdbRequest(id, path, key || '');
       });
     }
 
@@ -2458,47 +2641,122 @@
       if (status !== 200) return p.reject(new Error(status ? 'HTTP ' + status : '네트워크 오류'));
       try {
         const json = JSON.parse(body);
-        if (json.success) p.resolve(json.data || []);
-        else p.reject(new Error((json.errors || ['알 수 없는 오류']).join(', ')));
+        if (json.success !== undefined) {
+          if (json.success) p.resolve(json.data || []);
+          else p.reject(new Error((json.errors || ['알 수 없는 오류']).join(', ')));
+        } else {
+          p.resolve(json);
+        }
       } catch (e) {
         p.reject(new Error('응답을 읽을 수 없어요'));
       }
     };
 
+    function normTitle(str) {
+      return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    }
+
+    function isRelevantGame(query, candidateName) {
+      const qTokens = normTitle(query).split(/\s+/).filter(t => t.length > 1);
+      const cTokens = normTitle(candidateName).split(/\s+/).filter(t => t.length > 1);
+      if (!qTokens.length) return true;
+      const stopWords = new Set(['the', 'in', 'of', 'and', 'to', 'a', 'an', 'for', 'on', 'with', 'at', 'by']);
+      const sigQuery = qTokens.filter(t => !stopWords.has(t));
+      if (!sigQuery.length) sigQuery.push(...qTokens);
+      const matched = sigQuery.filter(t => cTokens.some(c => c === t || c.includes(t) || t.includes(c)));
+      return (matched.length / sigQuery.length) >= 0.6;
+    }
+
     async function searchSteamGridDB() {
       silkArtPack = null;
-      const term = document.getElementById('custItemTitle').value.trim();
-      if (!term) return;
+      const inputEl = document.getElementById('custItemTitle');
+      const rawTerm = inputEl ? inputEl.value.trim() : '';
+      if (!rawTerm) return;
+      const term = cleanSearchTitle(rawTerm);
+      if (term && term !== rawTerm && inputEl) {
+        inputEl.value = term;
+      }
+      const searchQuery = term || rawTerm;
+
       if (!localStorage.getItem('jindo_sgdb_key')) {
         sgdbStatus('SteamGridDB API 키가 필요해요. 설정 > 게임 아트 설정에서 키를 저장해주세요.');
         return;
       }
-      sgdbStatus('검색 중...');
+
       document.getElementById('sgdbResults').innerHTML = artAddTile();
+      sgdbStatus('검색 중...');
+
       try {
-        const matches = await sgdbFetch('/search/autocomplete/' + encodeURIComponent(term));
-        if (!matches.length) {
-          sgdbStatus('검색 결과가 없어요. 이름을 바꿔서 다시 검색해보세요.');
-          return;
-        }
-        // Top match plus its other editions ("X: Switch 2 Edition ..."), shown as one list.
-        // Other series entries (different games) are left out so their art doesn't mix in.
-        const base = matches[0].name.toLowerCase();
-        const related = matches.filter(g => g.name.toLowerCase().startsWith(base)).slice(0, 4);
-        sgdbStatus('이미지 불러오는 중...');
-        const searchId = (sgdbGameId = term);
-        const parts = await Promise.all(related.map(g => loadSgdbArt(g.id)));
-        if (sgdbGameId !== searchId) return;
-        // Merge per kind, dropping images uploaded to more than one entry
-        const all = { box: [], hero: [], logo: [] };
+        const all = { box: [], box_wide: [], hero: [], logo: [] };
         const seen = new Set();
-        parts.forEach(p => Object.keys(all).forEach(k => p[k].forEach(a => {
-          if (!seen.has(a.url)) { seen.add(a.url); all[k].push(a); }
-        })));
-        const total = all.box.length + all.hero.length + all.logo.length;
+        const addImage = (kind, item) => {
+          const url = typeof item === 'string' ? item : item.url;
+          const thumb = typeof item === 'string' ? item : (item.thumb || item.url);
+          if (!url || seen.has(url)) return;
+          seen.add(url);
+          all[kind].push(typeof item === 'string' ? { url, thumb } : item);
+        };
+
+        // 1. SteamGridDB Autocomplete
+        let sgdbRaw = await sgdbFetch('/search/autocomplete/' + encodeURIComponent(searchQuery)).catch(() => []);
+        if (!sgdbRaw || !sgdbRaw.length) {
+          const stripped = searchQuery.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (stripped && stripped !== searchQuery) {
+            sgdbRaw = await sgdbFetch('/search/autocomplete/' + encodeURIComponent(stripped)).catch(() => []);
+          }
+        }
+
+        // Filter ONLY relevant games
+        const matches = (sgdbRaw || []).filter(g => isRelevantGame(searchQuery, g.name));
+
+        if (matches.length > 0) {
+          sgdbStatus('이미지 불러오는 중...');
+          const parts = await Promise.all(matches.slice(0, 3).map(g => loadSgdbArt(g.id)));
+          parts.forEach(p => {
+            (p.box || []).forEach(img => {
+              if (img.width && img.height && img.width > img.height) {
+                addImage('box_wide', img);
+              } else {
+                addImage('box', img);
+              }
+            });
+            (p.hero || []).forEach(img => addImage('hero', img));
+            (p.logo || []).forEach(img => addImage('logo', img));
+          });
+        }
+
+        // 2. Steam Store Search (for Steam games or games lacking art on SteamGridDB)
+        if (all.box.length === 0 || all.box_wide.length === 0 || all.hero.length === 0) {
+          const steamRes = await sgdbFetch('https://store.steampowered.com/api/storesearch/?term=' + encodeURIComponent(searchQuery) + '&l=english&cc=US').catch(() => null);
+          const steamItems = steamRes && steamRes.items ? steamRes.items : [];
+          const app = steamItems.find(i => isRelevantGame(searchQuery, i.name));
+          if (app) {
+            sgdbStatus('스팀 공식 이미지 불러오는 중...');
+            const appDetails = await sgdbFetch('https://store.steampowered.com/api/appdetails?appids=' + app.id).catch(() => null);
+            const d = appDetails && appDetails[app.id] && appDetails[app.id].data ? appDetails[app.id].data : null;
+            if (d) {
+              if (d.header_image) addImage('box_wide', { url: d.header_image, thumb: d.header_image, width: 460, height: 215 });
+              if (d.capsule_image) addImage('box_wide', { url: d.capsule_image, thumb: d.capsule_image, width: 231, height: 87 });
+              if (d.background_raw) addImage('hero', { url: d.background_raw, thumb: d.background_raw, width: 1920, height: 1080 });
+              (d.screenshots || []).forEach(s => {
+                if (s && s.path_full) addImage('hero', { url: s.path_full, thumb: s.path_thumbnail || s.path_full, width: 1920, height: 1080 });
+              });
+              addImage('hero', { url: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${app.id}/library_hero.jpg`, thumb: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${app.id}/library_hero.jpg`, width: 1920, height: 620 });
+            }
+          }
+        }
+
+        const total = all.box.length + all.box_wide.length + all.hero.length + all.logo.length;
         renderSgdbResults(all);
-        const names = related.length > 1 ? `${related[0].name} 외 ${related.length - 1}개 버전 · ` : '';
-        if (currentCustTab !== 'video') sgdbStatus(total ? `${names}${total}개` : '이미지 없음');   // 영상 shows its own list
+
+        if (total > 0) {
+          const currentCount = (all[currentCustTab] || []).length;
+          if (currentCustTab !== 'video') {
+            sgdbStatus(currentCount ? `${searchQuery} · ${currentCount}개` : `${searchQuery} · 해당 슬롯 이미지 없음 (다른 탭 확인)`);
+          }
+        } else {
+          sgdbStatus(`"${searchQuery}" 이미지를 찾을 수 없어요. 영문 이름을 확인해주세요.`);
+        }
       } catch (e) {
         sgdbStatus('검색 실패: ' + e.message);
       }
@@ -2516,8 +2774,9 @@
 
     // First tile of the results: a picture from the device, in this slot's shape
     function artAddTile() {
-      const shape = { box: 'aspect-ratio:2/3', hero: 'aspect-ratio:16/9', logo: 'aspect-ratio:16/9', video: 'aspect-ratio:16/9' }[currentCustTab];
-      return `<button onclick="uploadArtFile()" style="${shape}" class="pad-item relative ${currentCustTab === 'hero' || currentCustTab === 'video' ? 'col-span-2' : ''} rounded-xl border-2 border-dashed border-white/25 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50">
+      const shape = { box: 'aspect-ratio:2/3', box_wide: 'aspect-ratio:16/9', hero: 'aspect-ratio:16/9', logo: 'aspect-ratio:16/9', video: 'aspect-ratio:16/9' }[currentCustTab] || 'aspect-ratio:2/3';
+      const isWide = currentCustTab === 'box_wide' || currentCustTab === 'hero' || currentCustTab === 'video';
+      return `<button onclick="uploadArtFile()" style="${shape}" class="pad-item relative ${isWide ? 'col-span-2' : ''} rounded-xl border-2 border-dashed border-white/25 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
         </button>`;
     }
@@ -2542,26 +2801,27 @@
           + (packs.length ? `<div class="col-span-4 text-[11px] font-bold text-white/50 px-1 mt-1">폴더 아트</div>` : '')
           + packs.map(a => `
           <button onclick="openSilkArt('${escapeHtml(a.id)}')" class="pad-item col-span-2 rounded-xl overflow-hidden bg-black/40 border-2 border-transparent text-left">
-            <img src="${escapeHtml(artSrc(a.preview || ''))}" loading="lazy" class="w-full aspect-video object-cover">
+            <img src="${escapeHtml(artSrc(a.preview || ''))}" onerror="this.closest('.pad-item').remove()" loading="lazy" class="w-full aspect-video object-cover">
             <div class="px-2 py-1.5 text-[11px] font-bold truncate">${escapeHtml(a.name)}</div>
           </button>`).join('');
         return;
       }
       status.textContent = '불러오는 중...';
       const files = await silkPackFiles(silkArtPack);
-      const kind = { box: 'icon', hero: 'hero', logo: 'logo' }[currentCustTab];
+      const kind = { box: 'icon', box_wide: 'icon', hero: 'hero', logo: 'logo' }[currentCustTab];
       const pack = silkLib.find(a => a.id === silkArtPack);
       // Every picture of this kind in the pack; the one for this folder's platform first
       const re = new RegExp(`by_platform/([^/]+)/${kind}\\.(png|webp|jpe?g|gif)$`, 'i');
       const pics = kind ? files.filter(f => re.test(f)).sort((a, b) => (b.match(re)[1] === sys) - (a.match(re)[1] === sys)) : [];
       status.textContent = (pack ? pack.name : '') + ` · ${pics.length}개`;
       const back = `<button onclick="openSilkArt()" class="pad-item rounded-xl bg-white/10 text-xs font-bold flex items-center justify-center" style="aspect-ratio:16/9">← 팩 목록</button>`;
+      const isBox = currentCustTab === 'box';
       grid.innerHTML = back + pics.map(f => {
         const url = `${SILK_API}/assets/${silkArtPack}/file/${f}`, plat = f.match(re)[1];
         return `
-        <button onclick="applySgdbArt(this)" data-url="${escapeHtml(url)}" data-kind="${currentCustTab}" style="aspect-ratio:${currentCustTab === 'box' ? '2/3' : '16/9'}"
-          class="sgdb-art relative ${currentCustTab === 'box' ? '' : 'col-span-2'} rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
-          <img src="${escapeHtml(url)}" loading="lazy" class="w-full h-full ${currentCustTab === 'logo' ? 'object-contain p-2' : 'object-cover'}">
+        <button onclick="applySgdbArt(this)" data-url="${escapeHtml(url)}" data-kind="${currentCustTab}" style="aspect-ratio:${isBox ? '2/3' : '16/9'}"
+          class="sgdb-art relative ${isBox ? '' : 'col-span-2'} rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
+          <img src="${escapeHtml(url)}" onerror="this.closest('.sgdb-art').remove()" loading="lazy" class="w-full h-full ${currentCustTab === 'logo' ? 'object-contain p-2' : 'object-cover'}">
           <span class="absolute left-1.5 bottom-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] font-bold">${escapeHtml(plat)}</span>
         </button>`;
       }).join('');
@@ -2571,7 +2831,13 @@
     function showArtResults() {
       if (silkArtPack !== null && document.getElementById('sgdbResults').querySelector('[onclick^="openSilkArt"]')) return openSilkArt(silkArtPack || undefined);
       // 영상 has no SteamGridDB results: the + tile (a file from the device) and the videos in files/Background_Video
-      if (lastSgdbResults && currentCustTab !== 'video') renderSgdbResults(lastSgdbResults);
+      if (lastSgdbResults && currentCustTab !== 'video') {
+        renderSgdbResults(lastSgdbResults);
+        const inputEl = document.getElementById('custItemTitle');
+        const term = inputEl ? inputEl.value.trim() : '';
+        const list = (lastSgdbResults && lastSgdbResults[currentCustTab]) || [];
+        sgdbStatus(list.length ? `${term} · ${list.length}개` : `${term} · 해당 슬롯 이미지 없음`);
+      }
       else if (currentCustTab === 'video') {
         // The one named like this game or folder first
         const cur = getActiveItems()[currentSelectedIndex], want = sameTitle(cur && cur.title);
@@ -2589,23 +2855,21 @@
       else document.getElementById('sgdbResults').innerHTML = artAddTile();
     }
 
-    // The slot's own kind only: 아이콘 shows grids, HERO shows heroes, 로고 shows logos.
+    // The slot's own kind only: 세로 아이콘 (box), 가로 아이콘 (box_wide), HERO, 로고
     let lastSgdbResults = null;
     function renderSgdbResults(all) {
       lastSgdbResults = all;
       if (currentCustTab === 'video') return showArtResults();
-      const order = [currentCustTab];
-      document.getElementById('sgdbResults').innerHTML = artAddTile() + order.map(kind => `
-        ${all[kind].map(a => {
-          // Box art comes in portrait and wide sizes; keep each image's own shape
-          const wide = kind !== 'box' || a.width > a.height;
-          const ratio = kind === 'box' && a.width && a.height ? `aspect-ratio:${a.width}/${a.height}` : 'aspect-ratio:16/9';
-          return `
-          <button onclick="applySgdbArt(this)" data-url="${escapeHtml(a.url)}" data-kind="${kind}" style="${ratio}"
-            class="sgdb-art relative ${wide && kind !== 'logo' ? 'col-span-2' : ''} rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
-            <img src="${escapeHtml(a.thumb)}" loading="lazy" class="w-full h-full ${kind === 'logo' ? 'object-contain p-2' : 'object-cover'}">
-          </button>`;
-        }).join('')}`).join('');
+      const list = (all && all[currentCustTab]) || [];
+      document.getElementById('sgdbResults').innerHTML = artAddTile() + list.map(a => {
+        const isWide = currentCustTab === 'box_wide' || currentCustTab === 'hero' || currentCustTab === 'video' || (a.width && a.height && a.width > a.height);
+        const ratio = currentCustTab === 'box' ? 'aspect-ratio:2/3' : (currentCustTab === 'box_wide' || currentCustTab === 'hero' ? 'aspect-ratio:16/9' : (a.width && a.height ? `aspect-ratio:${a.width}/${a.height}` : 'aspect-ratio:16/9'));
+        return `
+        <button onclick="applySgdbArt(this)" data-url="${escapeHtml(a.url)}" data-kind="${currentCustTab}" style="${ratio}"
+          class="sgdb-art pad-item relative ${isWide && currentCustTab !== 'logo' ? 'col-span-2' : ''} rounded-xl overflow-hidden bg-black/50 border-2 border-transparent">
+          <img src="${escapeHtml(a.thumb)}" onerror="this.closest('.sgdb-art').remove()" loading="lazy" class="w-full h-full ${currentCustTab === 'logo' ? 'object-contain p-2' : 'object-cover'}">
+        </button>`;
+      }).join('');
       markAppliedSgdbArt();
     }
 
@@ -2613,8 +2877,8 @@
     function markAppliedSgdbArt() {
       const current = getActiveItems()[currentSelectedIndex];
       if (!current) return;
-      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
-      const applied = (current.artFrom || {})[field] || current[field];
+      const field = { box: 'boxUrl', box_wide: 'boxWideUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
+      const applied = (current.artFrom || {})[field] || current[field] || '';
       document.querySelectorAll('.sgdb-art').forEach(b => {
         const on = !!applied && b.dataset.url === applied;
         b.classList.toggle('accent-border', on);
@@ -2661,7 +2925,18 @@
       const container = document.getElementById('steamGridLiveGallery');
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
-      const url = { box: current.boxUrl, logo: current.logoUrl, hero: current.heroUrl, video: current.videoUrl }[currentCustTab] || '';
+      let url = '';
+      if (currentCustTab === 'box') {
+        url = current.boxUrl || '';
+      } else if (currentCustTab === 'box_wide') {
+        url = current.boxWideUrl || '';
+      } else if (currentCustTab === 'hero') {
+        url = current.heroUrl || '';
+      } else if (currentCustTab === 'logo') {
+        url = current.logoUrl || '';
+      } else if (currentCustTab === 'video') {
+        url = current.videoUrl || '';
+      }
 
       container.innerHTML = `
         <div class="relative flex-1 min-h-0 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-[11px] text-white/40">
@@ -2692,27 +2967,24 @@
       setHeroPos.t = setTimeout(saveLibrary, 400);
     }
 
-    // 로고 slot: where this item's logo sits over its HERO and how big it is.
-    // Position is one 3x3 pick (a mini HERO area), so two "가운데" buttons can't be mixed up.
+    // 로고 slot: where this item's logo sits over its HERO and how big it is. Left: a small screen, tap where the
+    // logo goes (it shows at its size); right: four sizes drawn as bars of growing width.
     function logoLayoutControls(item) {
       const lay = effectiveLogoLayout(item);
-      const pos = ['start', 'center', 'end'];
-      const cells = pos.map(y => pos.map(x => `<div id="itemLogo_pos_${x}_${y}" onclick="setItemLogoPos('${x}', '${y}')"
-          class="seg-option !p-0 h-6 !rounded-md flex items-center justify-center ${lay.x === x && lay.y === y ? 'active' : ''}"><span class="w-3 h-1 rounded-full bg-current"></span></div>`).join('')).join('');
-      const sizeShort = { s: '작게', m: '보통', l: '크게', xl: '최대' };
+      const pos = ['start', 'center', 'end'], flex = { start: 'flex-start', center: 'center', end: 'flex-end' };
+      const w = Math.min(100, LOGO_SIZES[lay.size][1] * 3);   // logo width as a share of one cell (cells are 1/3 wide)
+      const cells = pos.map(y => pos.map(x => {
+        const on = lay.x === x && lay.y === y;
+        return `<button id="itemLogo_pos_${x}_${y}" onclick="setItemLogoPos('${x}', '${y}')" class="logo-cell" style="justify-content:${flex[x]};align-items:${flex[y]}">
+          ${on ? `<span class="logo-mark" style="width:${w}%"></span>` : '<span class="logo-dot"></span>'}</button>`;
+      }).join('')).join('');
+      const sizes = [['s', 30], ['m', 50], ['l', 72], ['xl', 96]].map(([v, bar]) => `
+        <button id="itemLogo_size_${v}" onclick="setItemLogoLayout('size', '${v}')" title="${{ s: '작게', m: '보통', l: '크게', xl: '최대' }[v]}"
+          class="logo-size ${lay.size === v ? 'on' : ''}"><span style="width:${bar}%"></span></button>`).join('');
       return `
-        <div class="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
-        <div class="flex items-center gap-3">
-          <span class="flex-shrink-0 text-[11px] font-bold text-white/60">위치</span>
-          <div class="grid grid-cols-3 gap-1 p-1 w-36 flex-shrink-0 rounded-lg bg-black/40 border border-white/10">${cells}</div>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="flex-shrink-0 text-[11px] font-bold text-white/60">크기</span>
-          <div class="seg-pill flex-1 !p-0.5">
-            ${[['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '최대']].map(([v, text]) => `<div id="itemLogo_size_${v}" onclick="setItemLogoLayout('size', '${v}')"
-              class="seg-option !px-0 !py-1 !text-[11px] ${lay.size === v ? 'active' : ''}">${text}</div>`).join('')}
-          </div>
-        </div>
+        <div class="h-full flex gap-3 items-stretch">
+          <div class="logo-screen">${cells}</div>
+          <div class="w-16 flex flex-col gap-1.5">${sizes}</div>
         </div>`;
     }
 
@@ -2740,7 +3012,7 @@
     async function selectCustArt(url) {
       const current = getActiveItems()[currentSelectedIndex];
       if (!current || current.isAdd) return;
-      const field = { box: 'boxUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
+      const field = { box: 'boxUrl', box_wide: 'boxWideUrl', logo: 'logoUrl', hero: 'heroUrl', video: 'videoUrl' }[currentCustTab];
       const seq = ++artPickSeq;
       const status = document.getElementById('sgdbStatus');
       let stored = url;
@@ -2760,8 +3032,15 @@
       const old = current[field];
       current[field] = stored;
       current.artFrom = { ...(current.artFrom || {}), [field]: stored !== url ? url : undefined };
+      if (currentCustTab === 'box') {
+        if (!current.boxWideUrl) current.boxWideUrl = stored;
+      } else if (currentCustTab === 'box_wide') {
+        if (!current.boxUrl) current.boxUrl = stored;
+      }
+      delete current.boxRatio;
       releaseArt(old);
       saveLibrary();
+      renderedCardsKey = '';
       renderLiveSteamGridGallery();
       markAppliedSgdbArt();
       renderMainView();
@@ -2824,18 +3103,20 @@
       folderEditTarget = folder;
       if (folder.isAdd) return;
       const isFolder = currentPlatformView === 'all';
+      const isApp = !!(folder.packageName || folder.shortcut);
+      const appTile = isFolder && isApp;
       document.getElementById('itemEditTitle').innerText = isFolder ? '폴더 편집' : '게임 편집';
-      document.getElementById('itemEditGroupLabel').innerText = isFolder ? '플랫폼' : '폴더';
+      document.getElementById('itemEditGroupLabel').innerText = isFolder && !appTile ? '플랫폼' : '폴더';
       document.getElementById('folderEditName').value = folder.title;
-      const choices = isFolder ? platforms.map(p => [p.id, p.name]) : platformFolders.filter(f => !f.packageName && !f.shortcut).map(f => [f.platform, f.title]);
+      // Apps and shortcuts pick where they live: a folder, or 메인화면 (a tile next to the folders)
+      const choices = isFolder && !appTile ? platforms.map(p => [p.id, p.name])
+        : [...platformFolders.filter(f => !f.packageName && !f.shortcut).map(f => [f.platform, f.title]), ...(isApp ? [['__home', '메인화면']] : [])];
       document.getElementById('folderEditPlatforms').innerHTML = choices.map(([id, name]) => `
         <button onclick="setFolderPlatform(this.dataset.pid)" data-pid="${escapeHtml(id)}" class="group-option px-3 py-2 rounded-xl text-left text-sm font-bold truncate">${escapeHtml(name)}</button>`).join('');
       toggleGroupList(false);
       toggleLayoutList(false);
-      const appTile = isFolder && !!(folder.packageName || folder.shortcut);
       document.getElementById('itemLayoutRow').classList.toggle('hidden', !isFolder || appTile);
-      document.getElementById('itemGroupBtn').parentElement.classList.toggle('hidden', appTile);
-      if (appTile) document.getElementById('itemEditTitle').innerText = '앱 편집';
+      if (isApp) document.getElementById('itemEditTitle').innerText = '앱 편집';
       if (isFolder) markFolderLayout();
       markFolderPlatform();
       const modal = document.getElementById('folderEditModal');
@@ -2860,7 +3141,8 @@
     }
 
     function markFolderPlatform() {
-      const current = currentPlatformView === 'all' ? folderEditTarget.system : folderEditTarget.platform;
+      const t = folderEditTarget;
+      const current = currentPlatformView !== 'all' ? t.platform : (t.packageName || t.shortcut) ? '__home' : t.system;
       let label = '없음';
       document.querySelectorAll('#folderEditPlatforms .group-option').forEach(o => {
         const on = o.dataset.pid === current;
@@ -2883,6 +3165,34 @@
     // Which platform (emulator) this folder's games run with; the games stay in the folder
     function setFolderPlatform(pid) {
       if (!folderEditTarget) return;
+      const it = folderEditTarget;
+      if (currentPlatformView === 'all' && (it.packageName || it.shortcut)) {
+        // A 메인화면 app tile goes into the picked folder; its name and art come along
+        if (pid === '__home') return toggleGroupList(false);
+        const { id, platform, system, accentColor, ...rest } = it;
+        const game = { ...rest, id: 'game_' + Date.now(), platform: pid, lastPlayed: Date.now() };
+        platformFolders = platformFolders.filter(f => f !== it);
+        games.push(game);
+        saveLibrary();
+        closeFolderEdit();
+        renderedCardsKey = '';
+        setPlatformView(pid);
+        setTimeout(() => { currentSelectedIndex = Math.max(0, getActiveItems().indexOf(game)); renderMainView(); scrollCardIntoView(currentSelectedIndex, true); }, 450);
+        return;
+      }
+      if (currentPlatformView !== 'all' && pid === '__home') {
+        // An app or shortcut inside a folder comes out as a 메인화면 tile next to the folders
+        const { id, platform, lastPlayed, ...rest } = it;
+        const key = 'app' + Date.now();
+        games = games.filter(g => g !== it);
+        platformFolders.push({ ...rest, id: key, platform: key, system: '', accentColor: '#334155' });
+        saveLibrary();
+        closeFolderEdit();
+        renderedCardsKey = '';
+        setPlatformView('all');
+        setTimeout(() => { currentSelectedIndex = platformFolders.length - 1; renderMainView(); scrollCardIntoView(currentSelectedIndex, true); }, 450);
+        return;
+      }
       if (currentPlatformView === 'all') {
         folderEditTarget.system = pid;
         saveLibrary();
@@ -3209,7 +3519,48 @@
     const LAYOUT_NAMES = { horizontal: '가로', grid2: '2행', grid3: '3행', list: '세로 목록' };
     function layoutFor(view) {
       const folder = view === 'all' ? null : getFolder(view);
-      return (folder && LAYOUT_NAMES[folder.layout] && folder.layout) || baseLayout;
+      const mode = (folder && LAYOUT_NAMES[folder.layout] && folder.layout) || baseLayout;
+      // 세로 목록 needs the HERO beside it, which in dual mode is on the other screen
+      return screenMode === 'dual' && mode === 'list' ? 'grid2' : mode;
+    }
+
+    // ===== Screen mode (싱글 / 듀얼) and card shape (포스터 / 네모) =====
+    let screenMode = localStorage.getItem('jindo_screen_mode') || 'single';
+    let cardShape = localStorage.getItem('jindo_card_shape') || 'poster';
+    function markPill(ids, on) { ids.forEach(id => document.getElementById(id).classList.toggle('active', id === on)); }
+    // 듀얼: the list on the small screen (the Thor's bottom one), HERO and logo on the big one
+    function setScreenMode(mode) {
+      screenMode = mode;
+      localStorage.setItem('jindo_screen_mode', mode);
+      document.body.classList.toggle('dual', mode === 'dual');
+      markPill(['btnScrSingle', 'btnScrDual'], mode === 'dual' ? 'btnScrDual' : 'btnScrSingle');
+      document.getElementById('btnLayV').classList.toggle('hidden', mode === 'dual');
+      const r = callNative('setDualScreen', mode === 'dual', true);
+      document.getElementById('screenModeStatus').textContent = mode === 'dual' && r === 'single' ? '두 번째 화면을 찾지 못했어요' : '';
+      applyActiveLayout();
+      renderedCardsKey = '';
+      layoutCards();
+      renderMainView();
+      sendTopScreen(getActiveItems()[currentSelectedIndex]);
+    }
+    function setCardShape(shape) {
+      cardShape = shape;
+      localStorage.setItem('jindo_card_shape', shape);
+      document.body.classList.toggle('shape-square', shape === 'square');
+      markPill(['btnShapePoster', 'btnShapeSquare'], shape === 'square' ? 'btnShapeSquare' : 'btnShapePoster');
+      renderedCardsKey = '';
+      layoutCards();
+      renderMainView();
+    }
+    // Dual screen: what the big screen shows (native TopActivity), the same choices as the single-screen HERO
+    function sendTopScreen(item) {
+      if (screenMode !== 'dual' || !item || item.isAdd) return;
+      const def = !item.heroUrl && localStorage.getItem('jindo_default_bg');
+      const lay = effectiveLogoLayout(item);
+      callNative('setTopScreen', JSON.stringify({
+        hero: item.heroUrl || def || item.boxUrl || '', fallback: !item.heroUrl && !def && !!item.boxUrl,
+        logo: item.logoUrl || '', x: lay.x, y: lay.y, size: lay.size, title: item.title || ''
+      }));
     }
     // Puts the layout that belongs to the current view on screen
     function applyActiveLayout() {
@@ -3231,6 +3582,8 @@
       
       updateLayoutPreview(mode);
       localStorage.setItem('jindo_layout', mode);
+      renderedCardsKey = '';
+      layoutCards();
       renderMainView();
       renderTopBar();
     }
@@ -3240,6 +3593,10 @@
       if (!folderEditTarget) return;
       if (mode) folderEditTarget.layout = mode; else delete folderEditTarget.layout;
       saveLibrary();
+      applyActiveLayout();
+      renderedCardsKey = '';
+      layoutCards();
+      renderMainView();
       markFolderLayout();
       toggleLayoutList(false);
       renderTopBar();
@@ -3616,14 +3973,21 @@
 
     // Background music
     let trackIndex = 0;
+    // Paused by the user: stays paused after another app or a restart, until they play again
+    let bgmUserPaused = localStorage.getItem('jindo_bgm_paused') === '1';
+    function setBgmPaused(v) {
+      bgmUserPaused = v;
+      if (v) localStorage.setItem('jindo_bgm_paused', '1'); else localStorage.removeItem('jindo_bgm_paused');
+    }
     function currentTracks() { return audioPrefs.tracks.filter(t => t && t.path); }
-    function playTrack(i) {
+    // keepPaused: load the song but leave it paused (start-up after the user had paused)
+    function playTrack(i, keepPaused) {
       const tracks = currentTracks(), audio = document.getElementById('bgmAudio');
       if (!tracks.length || !audioPrefs.musicOn) { audio.pause(); updateBgmWidget(); return; }
       trackIndex = (i + tracks.length) % tracks.length;
       audio.src = fileUrl(tracks[trackIndex].path);
       audio.volume = audioPrefs.musicVolume;
-      audio.play().catch(() => {});
+      if (keepPaused !== true) { setBgmPaused(false); audio.play().catch(() => {}); }
       updateBgmWidget();
     }
     function nextTrack() {
@@ -3647,6 +4011,7 @@
     function toggleBgm() {
       const audio = document.getElementById('bgmAudio');
       if (!audio.src) return playTrack(0);
+      setBgmPaused(!audio.paused);
       if (audio.paused) audio.play().catch(() => {});
       else audio.pause();
       updateBgmWidget();
@@ -3660,7 +4025,7 @@
       else {
         syncMusicFolder();
         syncMediaFolders();
-        if (audioPrefs.musicOn && audio.src) audio.play().catch(() => {});
+        if (audioPrefs.musicOn && audio.src && !bgmUserPaused) audio.play().catch(() => {});
       }
       updateBgmWidget();
     });
@@ -4145,16 +4510,93 @@
       applyFont();
     }
 
+    let savedLaunchAnim = localStorage.getItem('jindo_launch_anim');
+    if (!savedLaunchAnim || savedLaunchAnim === 'zoom') {
+      savedLaunchAnim = 'none';
+      localStorage.setItem('jindo_launch_anim', 'none');
+    }
+    let currentLaunchAnim = savedLaunchAnim;
+    function setLaunchAnim(mode) {
+      currentLaunchAnim = mode;
+      localStorage.setItem('jindo_launch_anim', mode);
+      ['Zoom', 'Fade', 'Flash', 'None'].forEach(k => {
+        const btn = document.getElementById('btnAnim' + k);
+        if (btn) btn.classList.remove('active');
+      });
+      const activeMap = { zoom: 'btnAnimZoom', fade: 'btnAnimFade', flash: 'btnAnimFlash', none: 'btnAnimNone' };
+      const activeBtn = document.getElementById(activeMap[mode]);
+      if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    let launchTransitionTimer = null;
+    function runLaunchTransition(game, callback) {
+      if (currentLaunchAnim === 'none') {
+        callback();
+        return;
+      }
+      const overlay = document.getElementById('launchTransition');
+      const bg = document.getElementById('launchBg');
+      const logo = document.getElementById('launchLogoImg');
+      const title = document.getElementById('launchTitleText');
+
+      if (currentLaunchAnim === 'fade') {
+        // Pure clean fade to black, no zoom, no blown-up images
+        bg.style.backgroundImage = '';
+        bg.style.backgroundColor = '#000';
+        logo.classList.add('hidden');
+        title.classList.add('hidden');
+      } else {
+        const heroArt = game.heroUrl || game.boxWideUrl || '';
+        bg.style.backgroundImage = heroArt ? `url('${escapeHtml(artSrc(heroArt))}')` : '';
+        bg.style.backgroundPosition = game.heroPos ? `${game.heroPos.x}% ${game.heroPos.y}%` : 'center';
+
+        if (game.logoUrl) {
+          logo.src = artSrc(game.logoUrl);
+          logo.classList.remove('hidden');
+          title.classList.add('hidden');
+        } else {
+          logo.classList.add('hidden');
+          title.textContent = game.title || '';
+          title.classList.remove('hidden');
+        }
+      }
+
+      overlay.className = '';
+      void overlay.offsetWidth;
+      overlay.classList.add('active', 'anim-' + currentLaunchAnim);
+
+      const delay = currentLaunchAnim === 'zoom' ? 380 : 250;
+      clearTimeout(launchTransitionTimer);
+      launchTransitionTimer = setTimeout(() => {
+        callback();
+      }, delay);
+    }
+
+    function closeLaunchTransition() {
+      const overlay = document.getElementById('launchTransition');
+      if (overlay) {
+        overlay.classList.remove('active', 'anim-zoom', 'anim-fade', 'anim-flash');
+      }
+    }
+
     function launchGame() {
       const game = getActiveItems()[currentSelectedIndex];
       if (!game || game.isAdd) return;
+
+      runLaunchTransition(game, () => {
+        doRealLaunch(game);
+      });
+    }
+
+    function doRealLaunch(game) {
       if (game.shortcut) {
         // Pinned shortcut from another app (needs Jindo as the default home)
         const err = callNative('launchShortcut', game.shortcut.pkg, game.shortcut.id);
-        if (err !== '') { playSfx('error'); alert(err || '바로가기를 열 수 없어요.'); return; }
+        if (err !== '') { closeLaunchTransition(); playSfx('error'); alert(err || '바로가기를 열 수 없어요.'); return; }
       } else if (game.packageName) {
         // Added from the installed apps: start that app
         if (!callNative('launchApp', game.packageName)) {
+          closeLaunchTransition();
           playSfx('error');
           alert('앱을 실행할 수 없어요. 삭제되었을 수 있어요.');
           return;
@@ -4162,11 +4604,13 @@
       } else if (game.romPath) {
         const result = launchRom(game);
         if (result !== 'ok') {
+          closeLaunchTransition();
           playSfx('error');
           alert(result || '실행할 수 없어요.');
           return;
         }
       } else {
+        closeLaunchTransition();
         alert('이 게임에는 실행할 앱이나 롬이 연결되어 있지 않아요.');
         return;
       }
@@ -4182,87 +4626,59 @@
       currentSelectedIndex = Math.max(0, getActiveItems().indexOf(game));
       renderMainView();
     }
-    // ===== Top bar: layout and sort menus for the current view, status opens the quick panel =====
-    const TOP_ITEMS = ['layoutButton', 'sortButton', 'topStatus', 'settingsButton'];
+    // ===== Top bar: status opens the quick panel, settings opens settings =====
+    const TOP_ITEMS = ['topStatus', 'settingsButton'];
     let topFocus = -1;          // gamepad focus in the top bar (index into TOP_ITEMS), -1 = on the cards
-    let topMenu = null, topMenuIdx = 0;
 
-    function topMenuOptions(name) {
-      if (name === 'layout') {
-        const opts = Object.entries(LAYOUT_NAMES);
-        return currentPlatformView === 'all' ? opts : [['', `기본 (${LAYOUT_NAMES[baseLayout]})`], ...opts];
+    function setGlobalSort(order) {
+      defaultFolderSort = order;
+      localStorage.setItem('jindo_default_sort', order);
+      if (currentPlatformView !== 'all') {
+        const f = getFolder(currentPlatformView);
+        if (f) { f.sort = order; saveLibrary(); }
       }
-      return currentPlatformView === 'all' ? SORTS_HOME : SORTS_FOLDER;
+      updateSortPill(order);
+      currentSelectedIndex = 0;
+      renderMainView();
     }
-    function topMenuValue(name) {
-      if (name === 'sort') return sortFor(currentPlatformView);
-      if (currentPlatformView === 'all') return baseLayout;
-      const f = getFolder(currentPlatformView);
-      return (f && f.layout) || '';
-    }
-    function renderTopBar() {
-      document.getElementById('layoutButton').title = LAYOUT_NAMES[currentLayout];
-      const sort = (currentPlatformView === 'all' ? SORTS_HOME : SORTS_FOLDER).find(o => o[0] === sortFor(currentPlatformView));
-      document.getElementById('sortButton').title = sort ? sort[1] : '정렬';
-      ['layout', 'sort'].forEach(name => {
-        const menu = document.getElementById(name + 'Menu');
-        const value = topMenuValue(name);
-        menu.innerHTML = topMenuOptions(name).map(([v, text], i) => `<button onclick="pickTopMenu('${name}', '${v}')" class="top-opt ${v === value ? 'active' : ''} ${topMenu === name && i === topMenuIdx ? 'pad-focus' : ''}">${text}</button>`).join('');
-        menu.classList.toggle('hidden', topMenu !== name);
+
+    function updateSortPill(order) {
+      ['Recent', 'Name', 'Added'].forEach(k => {
+        const btn = document.getElementById('btnSort' + k);
+        if (btn) btn.classList.remove('active');
       });
-      TOP_ITEMS.forEach((id, i) => document.getElementById(id).classList.toggle('pad-focus', i === topFocus && !topMenu));
+      const map = { recent: 'btnSortRecent', name: 'btnSortName', added: 'btnSortAdded' };
+      const b = document.getElementById(map[order]);
+      if (b) b.classList.add('active');
     }
-    function toggleTopMenu(name) {
-      topMenu = topMenu === name ? null : name;
-      if (topMenu) topMenuIdx = Math.max(0, topMenuOptions(name).findIndex(o => o[0] === topMenuValue(name)));
-      renderTopBar();
+
+    function renderTopBar() {
+      TOP_ITEMS.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('pad-focus', i === topFocus);
+      });
     }
-    function pickTopMenu(name, value) {
-      if (name === 'layout') {
-        if (currentPlatformView === 'all') setLayout(value);
-        else {
-          const f = getFolder(currentPlatformView);
-          if (value) f.layout = value; else delete f.layout;
-          saveLibrary();
-          applyActiveLayout();
-          renderMainView();
-        }
-      } else {
-        if (currentPlatformView === 'all') { homeSort = value; localStorage.setItem('jindo_home_sort', value); }
-        else { getFolder(currentPlatformView).sort = value; saveLibrary(); }
-        currentSelectedIndex = 0;
-        renderMainView();
-      }
-      topMenu = null;
-      renderTopBar();
-    }
+
     function setTopFocus(i) {
       topFocus = i;
-      topMenu = null;
       renderTopBar();
       renderMainView();
     }
-    // Gamepad in the top bar: ◀ ▶ between the buttons, A opens/uses, ▲▼ inside an open menu, B or ▼ back to the cards
+
+    // Gamepad in the top bar: ◀ ▶ between status & settings, A opens/uses, B or ▼ back to the cards
     function handleTopBarKey(key) {
-      if (topMenu) {
-        const n = topMenuOptions(topMenu).length;
-        if (key === 'ArrowDown' || key === 'ArrowUp') topMenuIdx = (topMenuIdx + (key === 'ArrowDown' ? 1 : -1) + n) % n;
-        else if (key === 'A') return pickTopMenu(topMenu, topMenuOptions(topMenu)[topMenuIdx][0]);
-        else if (key === 'B') topMenu = null;
-        return renderTopBar();
-      }
-      if (key === 'ArrowLeft' || key === 'ArrowRight') topFocus = Math.max(0, Math.min(TOP_ITEMS.length - 1, topFocus + (key === 'ArrowRight' ? 1 : -1)));
-      else if (key === 'A') {
+      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        topFocus = Math.max(0, Math.min(TOP_ITEMS.length - 1, topFocus + (key === 'ArrowRight' ? 1 : -1)));
+      } else if (key === 'A') {
         const id = TOP_ITEMS[topFocus];
-        if (id === 'layoutButton') return toggleTopMenu('layout');
-        if (id === 'sortButton') return toggleTopMenu('sort');
         setTopFocus(-1);
-        return id === 'topStatus' ? toggleQuickPanel() : openSettings();
-      } else if (key === 'ArrowDown' || key === 'B') return setTopFocus(-1);
+        if (id === 'topStatus') return toggleQuickPanel();
+        if (id === 'settingsButton') return openSettings();
+      } else if (key === 'ArrowDown' || key === 'B') {
+        return setTopFocus(-1);
+      }
       renderTopBar();
     }
-    // A tap outside an open menu closes it
-    document.addEventListener('click', e => { if (topMenu && !e.target.closest('.top-menu-wrap')) { topMenu = null; renderTopBar(); } });
 
     function updateClock() {
       const now = new Date();
@@ -4707,7 +5123,7 @@
 
     // "Pokemon Scarlet [0100A3D008C5C000][USA][v0](eShop).nsp" -> "Pokemon Scarlet"
     function cleanRomTitle(fileName) {
-      return fileName.replace(/\.[^.]+$/, '').replace(/\[[^\]]*\]|\([^)]*\)/g, '').replace(/[_\s]+/g, ' ').trim() || fileName;
+      return cleanSearchTitle(fileName) || fileName;
     }
 
     function triggerDataRescan() {
@@ -4721,7 +5137,7 @@
         return;
       }
 
-      const lines = [];
+      const lines = [], newTitles = [];
       let added = 0;
       platforms.forEach(p => {
         if (!p.romPath || p.system === 'apps') return;
@@ -4732,19 +5148,26 @@
           lines.push(`${p.name}: ${res.error}`);
           return;
         }
-        let platAdded = 0;
+        let platAdded = 0, platUpdated = 0;
+        const folder = platformFolders.find(x => x.system === p.id) || addFolder(p);
         res.files.forEach(f => {
           if (games.some(g => g.romPath === f.path)) return;
-          const folder = platformFolders.find(x => x.system === p.id) || addFolder(p);
+          const existing = games.find(g => g.platform === folder.platform && g.romPath && g.romPath.split('/').pop() === f.name && !callNative('fileExists', g.romPath));
+          if (existing) {
+            existing.romPath = f.path;
+            platUpdated++;
+            return;
+          }
           games.push({ id: 'rom_' + Date.now() + '_' + games.length, title: cleanRomTitle(f.name), platform: folder.platform, romPath: f.path, boxUrl: '', heroUrl: '', logoUrl: '', lastPlayed: 0 });
+          newTitles.push(cleanRomTitle(f.name));
           platAdded++;
         });
         added += platAdded;
-        lines.push(`${p.name}: ${res.files.length}개 발견, ${platAdded}개 새로 추가`);
+        lines.push(`${p.name}: ${res.files.length}개 발견, ${platAdded}개 새로 추가${platUpdated ? `, ${platUpdated}개 경로 갱신` : ''}`);
       });
       saveLibrary();
       renderMainView();
-      lines.push(added ? `✓ 총 ${added}개 게임을 추가했어요.` : '✓ 새로 추가할 게임이 없어요.');
+      lines.push(added ? `✓ 총 ${added}개 게임을 추가했어요: ${newTitles.join(', ')}` : '✓ 새로 추가할 게임이 없어요. (이미 목록에 있는 롬은 다시 넣지 않아요)');
       logText.innerText = lines.join('\n');
     }
 
@@ -4753,13 +5176,12 @@
     // ================= REAL ANDROID NATIVE BRIDGE INTEGRATION =================
     let installedDeviceApps = [];
 
-    function initNativeAndroidBridge() {
+    function loadDeviceApps() {
       if (window.JindoNative && typeof window.JindoNative.getInstalledApps === 'function') {
         try {
           const raw = window.JindoNative.getInstalledApps();
           const list = JSON.parse(raw);
           if (list && list.length > 0) {
-            console.log("Loaded " + list.length + " real installed apps from Odin 3!");
             installedDeviceApps = list;
             renderDynamicNativeApps(list);
           }
@@ -4767,22 +5189,151 @@
           console.error("Error reading native apps:", err);
         }
       }
+    }
+    // Native calls this when an app is installed, removed or updated; one install sends several events
+    let appsChangedTimer = 0;
+    window.onAppsChanged = () => {
+      clearTimeout(appsChangedTimer);
+      appsChangedTimer = setTimeout(loadDeviceApps, 800);
+    };
+
+    // ===== Sleep Mode / Screen OFF & Battery Savings =====
+    let isAppSleeping = false;
+    let wasBgmPlayingBeforeSleep = false;
+    let batteryIntervalTimer = null;
+
+    function handleSleepState(sleeping) {
+      if (isAppSleeping === sleeping) return;
+      isAppSleeping = sleeping;
+      const bgm = document.getElementById('bgmAudio');
+      const heroVid = document.getElementById('heroVideo');
+
+      if (sleeping) {
+        // Sleep / Screen OFF / Background - Pause media & polling to save battery
+        if (bgm && !bgm.paused) {
+          wasBgmPlayingBeforeSleep = true;
+          bgm.pause();
+        } else {
+          wasBgmPlayingBeforeSleep = false;
+        }
+        if (heroVid && !heroVid.paused) {
+          heroVid.pause();
+        }
+        if (batteryIntervalTimer) {
+          clearInterval(batteryIntervalTimer);
+          batteryIntervalTimer = null;
+        }
+      } else {
+        // Resume / Screen ON / Foreground
+        if (wasBgmPlayingBeforeSleep && !bgmUserPaused && bgm) {
+          bgm.play().catch(() => {});
+        }
+        if (heroVid && heroVid.src && heroVid.classList.contains('video-ready')) {
+          heroVid.play().catch(() => {});
+        }
+        closeLaunchTransition();
+        refreshBattery();
+        updateClock();
+        if (!batteryIntervalTimer) {
+          batteryIntervalTimer = setInterval(() => { refreshBattery(); updateClock(); }, 10000);
+        }
+      }
+    }
+
+    window.onHostLifecycle = function(state) {
+      if (state === 'pause' || state === 'stop') {
+        handleSleepState(true);
+      } else if (state === 'resume') {
+        handleSleepState(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      handleSleepState(document.hidden);
+    });
+
+    function initNativeAndroidBridge() {
+      loadDeviceApps();
 
       refreshBattery();
-      setInterval(() => refreshBattery(), 10000);
+      if (!batteryIntervalTimer) {
+        batteryIntervalTimer = setInterval(() => { refreshBattery(); updateClock(); }, 10000);
+      }
       try { const pin = callNative('takePendingPin'); if (pin) window.onPinShortcutRequest(JSON.parse(pin)); } catch (e) {}
+    }
+
+    // 전체 앱 order the user arranged (package names); apps not in it keep the system order at the end
+    const APP_ORDER_KEY = 'jindo_app_order';
+    function orderedApps(apps) {
+      let order = [];
+      try { order = JSON.parse(localStorage.getItem(APP_ORDER_KEY) || '[]'); } catch (e) {}
+      const pos = new Map(order.map((p, i) => [p, i]));
+      const at = a => pos.has(a.packageName) ? pos.get(a.packageName) : Infinity;
+      return [...apps].sort((a, b) => at(a) - at(b));
+    }
+    const appGrid = () => document.querySelector('#allAppsDrawerModal .grid-cols-5');
+    const appTile = pkg => [...appGrid().children].find(d => d.dataset.pkg === pkg);
+
+    // Long-press (or X): move or uninstall, as on Android
+    let appMenuPkg = '', appMoving = '';
+    function openAppMenu(pkg) {
+      const app = installedDeviceApps.find(a => a.packageName === pkg);
+      if (!app) return;
+      appMenuPkg = pkg;
+      document.getElementById('appMenuTitle').textContent = app.name;
+      document.getElementById('appMenuIcon').src = app.icon || '';
+      document.getElementById('appMenuModal').classList.remove('pointer-events-none', 'opacity-0');
+      padFocusFirst(document.getElementById('appMenuModal'), '.pad-item');
+    }
+    function closeAppMenu() {
+      document.getElementById('appMenuModal').classList.add('pointer-events-none', 'opacity-0');
+      const tile = appTile(appMenuPkg);
+      if (tile) padSetFocus(tile);
+    }
+    function uninstallFromMenu() {
+      closeAppMenu();
+      callNative('uninstallApp', appMenuPkg);   // Android asks to confirm; the list refreshes when it is gone
+    }
+    function startAppMove() {
+      closeAppMenu();
+      appMoving = appMenuPkg;
+      appTile(appMoving).classList.add('app-moving');
+      document.getElementById('allAppsHeaderPrompt').innerText = '위치 이동';
+    }
+    function moveAppTo(targetPkg) {
+      const m = appTile(appMoving), t = appTile(targetPkg);
+      if (!m || !t || m === t) return;
+      const kids = [...appGrid().children];
+      if (kids.indexOf(m) < kids.indexOf(t)) t.after(m); else t.before(m);
+      padSetFocus(m);
+    }
+    function endAppMove() {
+      const m = appTile(appMoving);
+      if (m) m.classList.remove('app-moving');
+      appMoving = '';
+      localStorage.setItem(APP_ORDER_KEY, JSON.stringify([...appGrid().children].map(d => d.dataset.pkg)));
+      document.getElementById('allAppsHeaderPrompt').innerText = '전체 앱';
+    }
+    function handleAppMoveKey(key) {
+      if (key.startsWith('Arrow')) {
+        const next = nearestInDirection([...appGrid().children], appTile(appMoving), key);
+        if (next) moveAppTo(next.dataset.pkg);
+      } else if (key === 'A' || key === 'B' || key === 'X') endAppMove();
     }
 
     function renderDynamicNativeApps(apps) {
       // Find drawer container grid
-      const drawerGrid = document.querySelector('#allAppsDrawerModal .grid-cols-5');
+      const drawerGrid = appGrid();
       if (!drawerGrid) return;
       drawerGrid.innerHTML = '';
 
-      apps.forEach(app => {
+      orderedApps(apps).forEach(app => {
         const div = document.createElement('div');
         div.className = 'pad-item flex flex-col items-center cursor-pointer p-1.5 rounded-xl';
-        div.onclick = () => handleAppChosen(app.name, app.icon || '📱', app.packageName);
+        // While moving, a tap puts the lifted app here; tapping the lifted app itself puts it down
+        div.onclick = () => appMoving ? (appMoving === app.packageName ? endAppMove() : moveAppTo(app.packageName))
+          : handleAppChosen(app.name, app.icon || '📱', app.packageName);
+        div.oncontextmenu = e => { e.preventDefault(); if (!appMoving) openAppMenu(app.packageName); };
         div.dataset.pkg = app.packageName;
 
         let iconMarkup = '';
@@ -4841,13 +5392,48 @@
       let s = state;
       if (!s) { try { s = JSON.parse(callNative('getQuickSettingsState') || '{}'); } catch (e) { s = {}; } }
       if (s.battery === undefined) return;
+
+      const isCharging = !!s.charging;
+      const isLow = s.battery <= 20;
+
       document.querySelectorAll('.batt').forEach(b => {
-        b.querySelector('.batt-fill').style.width = s.battery + '%';
-        b.querySelector('.batt-bolt').classList.toggle('hidden', !s.charging);
+        const fill = b.querySelector('.batt-fill');
+        if (fill) {
+          fill.style.width = s.battery + '%';
+          fill.classList.remove('bg-emerald-500', 'bg-rose-500', 'accent-bg');
+          if (isCharging) {
+            fill.classList.add('bg-emerald-500');
+          } else if (isLow) {
+            fill.classList.add('bg-rose-500');
+          } else {
+            fill.classList.add('accent-bg');
+          }
+        }
+        const bolt = b.querySelector('.batt-bolt');
+        if (bolt) bolt.classList.toggle('hidden', !isCharging);
         const pct = b.querySelector('.batt-pct');
-        pct.textContent = s.battery + '%';
-        pct.classList.toggle('hidden', !qpPrefs.batteryPercent);
+        if (pct) {
+          pct.textContent = s.battery + '%';
+          pct.classList.toggle('hidden', !qpPrefs.batteryPercent);
+        }
       });
+
+      // Subtle minimalist indicators on top status bar
+      const btIcon = document.getElementById('topBtIcon');
+      if (btIcon) btIcon.classList.toggle('hidden', !s.bluetooth);
+
+      const wifiIcon = document.getElementById('topWifiIcon');
+      if (wifiIcon) wifiIcon.style.opacity = s.wifi ? '1' : '0.4';
+
+      const tempEl = document.getElementById('qpBatteryTemp');
+      if (tempEl) {
+        if (s.batteryTemp) {
+          tempEl.textContent = '· ' + s.batteryTemp + '°C';
+          tempEl.classList.remove('hidden');
+        } else {
+          tempEl.classList.add('hidden');
+        }
+      }
     }
 
     // Quick panel contents (Settings > 알림창)
@@ -5114,6 +5700,7 @@
 
     // Modals driven by padHandleKey; while one is open, keys don't reach the view behind.
     const padModals = [
+      ['appMenuModal', () => closeAppMenu()],
       ['selectPickerModal', () => closeSelectPicker()],
       ['folderEditModal', () => closeFolderEdit()],
       ['newGameModal', () => closeNewGameModal()],
@@ -5211,8 +5798,14 @@
         return;
       }
       if (isOpen('universalCustomModal') && (key === 'L1' || key === 'R1')) {
-        const slots = ['box', 'hero', 'logo', 'video'];
+        const slots = ['box', 'box_wide', 'hero', 'logo', 'video'];
         selectCustSlot(slots[(slots.indexOf(currentCustTab) + (key === 'R1' ? 1 : -1) + slots.length) % slots.length]);
+        return;
+      }
+      // 전체 앱: moving an app takes every key; X on an app opens 위치 이동 / 앱 삭제
+      if (appMoving && isOpen('allAppsDrawerModal')) { handleAppMoveKey(key); return; }
+      if (key === 'X' && isOpen('allAppsDrawerModal') && !isOpen('appMenuModal') && padEl && padEl.dataset.pkg) {
+        openAppMenu(padEl.dataset.pkg);
         return;
       }
       // 전체 앱: Y on an app adds it to the home screen or a folder
@@ -5346,10 +5939,15 @@
       settingsEl.querySelectorAll('input[type=range]:not(.color-range)').forEach(setRangeFill);
       const savedDock = localStorage.getItem('jindo_dock_mode') || 'visible';
       setDockMode(savedDock);
+      document.getElementById('deviceName').textContent = callNative('getDeviceName') || '';
+      setCardShape(cardShape);
       setLayout(localStorage.getItem('jindo_layout') || 'horizontal');
+      setScreenMode(screenMode);
       setCursorStylePill(localStorage.getItem('jindo_cursor') || 'corners');
       setHeroStylePill(localStorage.getItem('jindo_hero_style') || 'vignette');
       setSystemAccentColor(localStorage.getItem('jindo_accent') || '#38bdf8');
+      setLaunchAnim(currentLaunchAnim);
+      updateSortPill(defaultFolderSort);
       try { Object.assign(logoLayout, JSON.parse(localStorage.getItem('jindo_logo_layout') || '{}')); } catch (e) {}
       renderAudioSettings();
       applyFont();
@@ -5357,7 +5955,7 @@
       enhanceChoiceGroups(document.getElementById('newGameModal'));
       applyQpPrefs();
       renderTopBar();
-      playTrack(0);
+      playTrack(0, bgmUserPaused);
       moveArtOnDevice();
       // Once: shrink pictures stored before art was kept at screen size
       // Logos are drawn at most ~900 px wide; big ones made every folder switch stutter while they decoded
@@ -5373,7 +5971,52 @@
         document.getElementById('sgdbKeyStatus').innerText = '저장된 키 있음';
       }
 
+    function migrateSdCardPaths() {
+      try {
+        const mounts = JSON.parse(callNative('getMountedStorageIds') || '[]');
+        let changed = false;
+        if (mounts.length) {
+          const fixPath = (p) => {
+            if (!p || typeof p !== 'string') return p;
+            const m = p.match(/^\/storage\/([^/]+)(\/.*)$/);
+            if (!m || m[1] === 'emulated' || m[1] === 'self') return p;
+            if (callNative('fileExists', p)) return p;
+            for (const id of mounts) {
+              const cand = '/storage/' + id + m[2];
+              if (callNative('fileExists', cand)) { changed = true; return cand; }
+            }
+            return p;
+          };
+          games.forEach(g => { if (g.romPath) g.romPath = fixPath(g.romPath); });
+          platforms.forEach(p => { if (p.romPath) p.romPath = fixPath(p.romPath); });
+        }
+        // Deduplicate ROMs sharing the same romPath (e.g. after SD card swap + rescan), keeping the richer/earlier entry
+        const byPath = new Map();
+        const score = (g) => (g.boxUrl ? 4 : 0) + (g.heroUrl ? 2 : 0) + (g.logoUrl ? 1 : 0) + (g.lastPlayed ? 1 : 0);
+        const deduped = [];
+        for (const g of games) {
+          if (!g.romPath) { deduped.push(g); continue; }
+          const prevIdx = byPath.get(g.romPath);
+          if (prevIdx === undefined) {
+            byPath.set(g.romPath, deduped.length);
+            deduped.push(g);
+          } else {
+            changed = true;
+            if (score(g) > score(deduped[prevIdx])) deduped[prevIdx] = g;
+          }
+        }
+        if (deduped.length !== games.length) {
+          games.length = 0;
+          games.push(...deduped);
+        }
+        if (changed) saveLibrary();
+      } catch (e) {}
+    }
+    migrateSdCardPaths();
+
+    currentSelectedIndex = Math.min(Math.max(0, getActiveItems().length - 1), currentSelectedIndex);
     renderMainView();
+    scrollCardIntoView(currentSelectedIndex, true);
     setTimeout(() => {
       // Entrance animations that were held back would replay now; the cards are already in place
       document.querySelectorAll('.card-enter, .hero-in').forEach(el => el.classList.remove('card-enter', 'hero-in'));

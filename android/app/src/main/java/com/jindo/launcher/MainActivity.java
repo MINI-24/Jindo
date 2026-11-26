@@ -1,5 +1,8 @@
 package com.jindo.launcher;
 
+import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ActivityOptions;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.ClipboardManager;
@@ -23,9 +26,13 @@ import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Base64;
+import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -429,9 +436,113 @@ public class MainActivity extends BridgeActivity {
         f.delete();
     }
 
+    private void excludeFromRecentTasks() {
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) {
+                List<ActivityManager.AppTask> tasks = am.getAppTasks();
+                if (tasks != null) {
+                    for (ActivityManager.AppTask task : tasks) {
+                        task.setExcludeFromRecents(true);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    static MainActivity instance;
+
+    // ===== Dual screen (AYN Thor): the list (this activity) on one screen, TopActivity (HERO/logo) on the other =====
+    boolean dualOn = false, listOnSmall = true;
+
+    /** The screens that are on, the one this activity is on first */
+    private android.view.Display[] liveDisplays() {
+        android.hardware.display.DisplayManager dm = getSystemService(android.hardware.display.DisplayManager.class);
+        List<android.view.Display> out = new ArrayList<>();
+        int mine = myDisplayId();
+        for (android.view.Display d : dm.getDisplays()) {
+            if (d.getState() != android.view.Display.STATE_ON || (d.getFlags() & android.view.Display.FLAG_PRIVATE) != 0) continue;
+            if (d.getDisplayId() == mine) out.add(0, d); else out.add(d);
+        }
+        return out.toArray(new android.view.Display[0]);
+    }
+
+    private static long area(android.view.Display d) {
+        android.graphics.Point p = new android.graphics.Point();
+        d.getRealSize(p);
+        return (long) p.x * p.y;
+    }
+
+    /** {list, top} display ids for dual mode, or null with fewer than two screens */
+    int[] dualDisplays() {
+        android.view.Display[] ds = liveDisplays();
+        if (ds.length < 2) return null;
+        android.view.Display small = area(ds[0]) <= area(ds[1]) ? ds[0] : ds[1], big = small == ds[0] ? ds[1] : ds[0];
+        android.view.Display list = listOnSmall ? small : big;
+        return new int[]{ list.getDisplayId(), (list == small ? big : small).getDisplayId() };
+    }
+
+    /** Where games go: in dual mode the screen that is not the list's */
+    Bundle gameLaunchOptions(ActivityOptions opt) {
+        int[] ids = dualOn ? dualDisplays() : null;
+        if (ids != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) opt.setLaunchDisplayId(ids[1]);
+        return opt.toBundle();
+    }
+
+    /** Puts the list on its screen and TopActivity on the other; "ok", "moving" or "single" (one screen only) */
+    // The screen an activity is on now (getWindowManager() keeps the one it started on after a move)
+    static int displayIdOf(Activity a) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && a.getDisplay() != null) return a.getDisplay().getDisplayId();
+        return a.getWindowManager().getDefaultDisplay().getDisplayId();
+    }
+    private int myDisplayId() { return displayIdOf(this); }
+
+    // Moves the launcher's task to another screen; it arrives there through onNewIntent
+    private void moveSelfTo(int displayId) {
+        Intent self = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(self, ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle());
+    }
+
+    String applyDualScreen() {
+        if (!dualOn) {
+            closeTopScreen();
+            // One screen: the launcher belongs on the main screen
+            if (myDisplayId() != android.view.Display.DEFAULT_DISPLAY) moveSelfTo(android.view.Display.DEFAULT_DISPLAY);
+            return "ok";
+        }
+        int[] ids = dualDisplays();
+        if (ids == null) return "single";
+        if (myDisplayId() != ids[0]) {
+            moveSelfTo(ids[0]);
+            new Handler(Looper.getMainLooper()).postDelayed(this::showTopScreen, 800);
+            return "moving";
+        }
+        showTopScreen();
+        return "ok";
+    }
+
+    private void closeTopScreen() {
+        TopActivity top = TopActivity.current;
+        TopActivity.current = null;
+        if (top != null) top.finishAndRemoveTask();
+    }
+
+    void showTopScreen() {
+        int[] ids = dualOn ? dualDisplays() : null;
+        if (ids == null) return;
+        TopActivity top = TopActivity.current;
+        if (top != null && !top.isFinishing() && displayIdOf(top) == ids[1]) return;   // already there (a closed game uncovers it)
+        closeTopScreen();
+        // Always a new task, so a closing one on the other screen is never reused
+        Intent i = new Intent(this, TopActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(i, ActivityOptions.makeBasic().setLaunchDisplayId(ids[1]).toBundle());
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
+        excludeFromRecentTasks();
         makeFullScreen();
         setupNativeBridge();
         handlePinShortcut(getIntent());
@@ -440,6 +551,47 @@ public class MainActivity extends BridgeActivity {
         decor.setOnSystemUiVisibilityChangeListener(visibility -> {
             if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) decor.postDelayed(this::makeFullScreen, 1200);
         });
+        // The app list is read once at start; tell the page when apps are installed, removed or updated
+        IntentFilter apps = new IntentFilter();
+        apps.addAction(Intent.ACTION_PACKAGE_ADDED);
+        apps.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        apps.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        apps.addDataScheme("package");
+        registerReceiver(appsChanged, apps);
+
+        IntentFilter screen = new IntentFilter();
+        screen.addAction(Intent.ACTION_SCREEN_OFF);
+        screen.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenReceiver, screen);
+    }
+
+    private final BroadcastReceiver appsChanged = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (getBridge() == null || getBridge().getWebView() == null) return;
+            WebView webView = getBridge().getWebView();
+            webView.post(() -> webView.evaluateJavascript("window.onAppsChanged && window.onAppsChanged();", null));
+        }
+    };
+
+    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
+            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                notifyWebLifecycle("pause");
+            } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                notifyWebLifecycle("resume");
+            }
+        }
+    };
+
+    @Override
+    public void onDestroy() {
+        if (instance == this) instance = null;
+        unregisterReceiver(appsChanged);
+        try { unregisterReceiver(screenReceiver); } catch (Exception ignored) {}
+        super.onDestroy();
     }
 
     @Override
@@ -447,12 +599,41 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handlePinShortcut(intent);
+        // Home pressed on the other screen brings the launcher there: put the list back on its own screen
+        // (only Home: the launcher's own move to its screen also arrives here)
+        if (dualOn && intent != null && intent.hasCategory(Intent.CATEGORY_HOME))
+            new Handler(Looper.getMainLooper()).postDelayed(this::applyDualScreen, 300);
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        excludeFromRecentTasks();
         makeFullScreen();
+        notifyWebLifecycle("resume");
+        // Back from a game: the HERO screen comes back in front of the closed game
+        if (dualOn) showTopScreen();
+    }
+
+    @Override
+    public void onPause() {
+        stopStickRepeat();
+        super.onPause();
+        excludeFromRecentTasks();
+        notifyWebLifecycle("pause");
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        excludeFromRecentTasks();
+        notifyWebLifecycle("stop");
+    }
+
+    private void notifyWebLifecycle(String state) {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        WebView webView = getBridge().getWebView();
+        webView.post(() -> webView.evaluateJavascript("window.onHostLifecycle && window.onHostLifecycle('" + state + "');", null));
     }
 
     @Override
@@ -460,6 +641,7 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             makeFullScreen();
+            excludeFromRecentTasks();
         }
     }
 
@@ -480,6 +662,59 @@ public class MainActivity extends BridgeActivity {
             webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
             webView.addJavascriptInterface(new JindoNativeBridge(this), "JindoNative");
         }
+    }
+
+    private final Handler stickHandler = new Handler(Looper.getMainLooper());
+    private String lastStickDir = null;
+    private final Runnable stickRepeatRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (lastStickDir == null) return;
+            dispatchGamepadKey(lastStickDir, true);
+            stickHandler.postDelayed(this, 110);
+        }
+    };
+
+    private void stopStickRepeat() {
+        stickHandler.removeCallbacks(stickRepeatRunnable);
+        lastStickDir = null;
+    }
+
+    private void dispatchGamepadKey(final String keyStr, final boolean repeat) {
+        if (keyStr == null || getBridge() == null || getBridge().getWebView() == null) return;
+        getBridge().getWebView().post(() ->
+            getBridge().getWebView().evaluateJavascript("if(window.handleNativeGamepadKey) window.handleNativeGamepadKey('" + keyStr + "', " + repeat + ");", null)
+        );
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                && event.getAction() == MotionEvent.ACTION_MOVE) {
+            float x = event.getAxisValue(MotionEvent.AXIS_X);
+            float y = event.getAxisValue(MotionEvent.AXIS_Y);
+            float threshold = (lastStickDir == null) ? 0.55f : 0.35f;
+            String dir = null;
+            if (Math.abs(x) >= Math.abs(y)) {
+                if (Math.abs(x) >= threshold) dir = (x < 0) ? "ArrowLeft" : "ArrowRight";
+            } else {
+                if (Math.abs(y) >= threshold) dir = (y < 0) ? "ArrowUp" : "ArrowDown";
+            }
+            if (dir == null) {
+                stopStickRepeat();
+                return super.dispatchGenericMotionEvent(event);
+            }
+            if (!dir.equals(lastStickDir)) {
+                stopStickRepeat();
+                lastStickDir = dir;
+                dispatchGamepadKey(dir, false);
+                stickHandler.postDelayed(stickRepeatRunnable, 380);
+            }
+            boolean hatActive = Math.abs(event.getAxisValue(MotionEvent.AXIS_HAT_X)) >= 0.5f
+                    || Math.abs(event.getAxisValue(MotionEvent.AXIS_HAT_Y)) >= 0.5f;
+            return hatActive ? super.dispatchGenericMotionEvent(event) : true;
+        }
+        return super.dispatchGenericMotionEvent(event);
     }
 
     @Override
@@ -516,15 +751,8 @@ public class MainActivity extends BridgeActivity {
             }
 
             if (keyStr != null && getBridge() != null && getBridge().getWebView() != null) {
-                final String k = keyStr;
                 // Second argument: the key is being held (auto-repeat), so lists stop at their ends instead of wrapping
-                final boolean repeat = event.getRepeatCount() > 0;
-                getBridge().getWebView().post(new Runnable() {
-                    @Override
-                    public void run() {
-                        getBridge().getWebView().evaluateJavascript("if(window.handleNativeGamepadKey) window.handleNativeGamepadKey('" + k + "', " + repeat + ");", null);
-                    }
-                });
+                dispatchGamepadKey(keyStr, event.getRepeatCount() > 0);
                 return true;
             }
         }
@@ -536,6 +764,14 @@ public class MainActivity extends BridgeActivity {
 
         public JindoNativeBridge(Context context) {
             this.context = context;
+        }
+
+        // Settings > 기기 정보: the device this runs on (e.g. "AYN Thor")
+        @JavascriptInterface
+        public String getDeviceName() {
+            String model = Build.MODEL.replace('_', ' ').trim();
+            // Some models already start with the maker ("AYN_Thor")
+            return model.toLowerCase().startsWith(Build.MANUFACTURER.toLowerCase()) ? model : (Build.MANUFACTURER + " " + model).trim();
         }
 
         // Single source for the version shown in Settings: versionName in app/build.gradle
@@ -578,14 +814,44 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        // Opens Android's own uninstall confirmation; nothing is removed unless the user confirms there
+        @JavascriptInterface
+        public void uninstallApp(String packageName) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + packageName));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            } catch (Exception ignored) {}
+        }
+
+        private void startActivityCleanly(Intent intent) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                ActivityOptions opt = ActivityOptions.makeCustomAnimation(context, R.anim.no_anim, R.anim.no_anim);
+                context.startActivity(intent, ((MainActivity) context).gameLaunchOptions(opt));
+                if (context instanceof android.app.Activity) {
+                    android.app.Activity act = (android.app.Activity) context;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, R.anim.no_anim, R.anim.no_anim);
+                        act.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.no_anim, R.anim.no_anim);
+                    }
+                    act.overridePendingTransition(R.anim.no_anim, R.anim.no_anim);
+                }
+            } catch (Exception e) {
+                try {
+                    context.startActivity(intent);
+                } catch (Exception ignored) {}
+            }
+        }
+
         @JavascriptInterface
         public boolean launchApp(String packageName) {
             try {
                 PackageManager pm = context.getPackageManager();
                 Intent launchIntent = pm.getLaunchIntentForPackage(packageName);
                 if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(launchIntent);
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    startActivityCleanly(launchIntent);
                     return true;
                 }
             } catch (Exception ignored) {}
@@ -624,13 +890,45 @@ public class MainActivity extends BridgeActivity {
             }
         }
 
+        // Dual screen: on/off and which screen holds the list (true = the smaller one, the Thor's bottom screen).
+        // Answers "ok", "moving" (the list goes to its screen) or "single" (only one screen is on)
+        @JavascriptInterface
+        public String setDualScreen(boolean on, boolean listOnSmall) {
+            MainActivity a = (MainActivity) context;
+            a.dualOn = on;
+            a.listOnSmall = listOnSmall;
+            final String[] r = { "ok" };
+            java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            a.runOnUiThread(() -> { try { r[0] = a.applyDualScreen(); } finally { done.countDown(); } });
+            try { done.await(2, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+            return r[0];
+        }
+
+        // What the big screen shows: {hero, fallback, logo, x, y, size, title}
+        @JavascriptInterface
+        public void setTopScreen(String json) {
+            if (json == null || json.equals(TopActivity.lastState)) return;
+            TopActivity.lastState = json;
+            TopActivity top = TopActivity.current;
+            if (top != null) top.runOnUiThread(() -> top.apply(json));
+        }
+
         @JavascriptInterface
         public String launchShortcut(String pkg, String shortcutId) {
             try {
                 LauncherApps la = context.getSystemService(LauncherApps.class);
                 if (la == null || !la.hasShortcutHostPermission())
                     return "기본 홈 앱이어야 바로가기를 열 수 있어요";
-                la.startShortcut(pkg, shortcutId, null, null, android.os.Process.myUserHandle());
+                ActivityOptions opt = ActivityOptions.makeCustomAnimation(context, R.anim.no_anim, R.anim.no_anim);
+                la.startShortcut(pkg, shortcutId, null, ((MainActivity) context).gameLaunchOptions(opt), android.os.Process.myUserHandle());
+                if (context instanceof android.app.Activity) {
+                    android.app.Activity act = (android.app.Activity) context;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        act.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, R.anim.no_anim, R.anim.no_anim);
+                        act.overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.no_anim, R.anim.no_anim);
+                    }
+                    act.overridePendingTransition(R.anim.no_anim, R.anim.no_anim);
+                }
                 return "";
             } catch (Exception e) {
                 return e.getMessage() == null ? e.toString() : e.getMessage();
@@ -641,8 +939,8 @@ public class MainActivity extends BridgeActivity {
         public boolean launchIntentUri(String uri) {
             try {
                 Intent intent = Intent.parseUri(uri, Intent.URI_INTENT_SCHEME);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                startActivityCleanly(intent);
                 return true;
             } catch (Exception ignored) {
                 return false;
@@ -713,6 +1011,14 @@ public class MainActivity extends BridgeActivity {
                 BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
                 obj.put("battery", bm != null ? bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) : 0);
                 obj.put("charging", bm != null && bm.isCharging());
+
+                Intent batteryIntent = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                if (batteryIntent != null) {
+                    int rawTemp = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
+                    if (rawTemp > 0) {
+                        obj.put("batteryTemp", Math.round(rawTemp / 10.0f));
+                    }
+                }
             } catch (Exception ignored) {}
             return obj.toString();
         }
@@ -950,7 +1256,7 @@ public class MainActivity extends BridgeActivity {
                 if (!spec.isNull("action")) intent.setAction(spec.getString("action"));
                 if (!spec.isNull("category")) intent.addCategory(spec.getString("category"));
 
-                int flags = Intent.FLAG_ACTIVITY_NEW_TASK;
+                int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_CLEAR_TOP;
                 JSONObject data = spec.optJSONObject("data");
                 if (data != null) {
                     String value = data.getString("value").replace("%ANDROIDPACKAGE%", pkg);
@@ -993,7 +1299,7 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
                 intent.addFlags(flags);
-                context.startActivity(intent);
+                startActivityCleanly(intent);
                 return "ok";
             } catch (Exception e) {
                 return "실행 실패: " + e.getMessage();
@@ -1378,8 +1684,11 @@ public class MainActivity extends BridgeActivity {
                 String body = "";
                 HttpURLConnection conn = null;
                 try {
-                    conn = (HttpURLConnection) new URL("https://www.steamgriddb.com/api/v2" + path).openConnection();
-                    conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                    String fullUrl = path.startsWith("http") ? path : ("https://www.steamgriddb.com/api/v2" + path);
+                    conn = (HttpURLConnection) new URL(fullUrl).openConnection();
+                    if (!path.startsWith("http") && apiKey != null && !apiKey.isEmpty()) {
+                        conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                    }
                     conn.setConnectTimeout(10000);
                     conn.setReadTimeout(15000);
                     status = conn.getResponseCode();
@@ -1428,15 +1737,64 @@ public class MainActivity extends BridgeActivity {
             return true;
         }
 
+        @JavascriptInterface
+        public String getMountedStorageIds() {
+            java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+            try {
+                File[] extDirs = context.getExternalFilesDirs(null);
+                if (extDirs != null) {
+                    for (File d : extDirs) {
+                        if (d == null) continue;
+                        String p = d.getAbsolutePath();
+                        if (p.startsWith("/storage/")) {
+                            String rest = p.substring("/storage/".length());
+                            int slash = rest.indexOf('/');
+                            String id = slash >= 0 ? rest.substring(0, slash) : rest;
+                            if (!id.isEmpty() && !"emulated".equals(id) && !"self".equals(id)) ids.add(id);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            try {
+                android.os.storage.StorageManager sm = (android.os.storage.StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+                if (sm != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    for (android.os.storage.StorageVolume v : sm.getStorageVolumes()) {
+                        if (!android.os.Environment.MEDIA_MOUNTED.equals(v.getState())) continue;
+                        String uuid = v.getUuid();
+                        if (uuid != null && !uuid.isEmpty() && !"emulated".equals(uuid) && !"self".equals(uuid)) ids.add(uuid);
+                    }
+                }
+            } catch (Exception ignored) {}
+            try {
+                File[] dirs = new File("/storage").listFiles();
+                if (dirs != null) {
+                    for (File d : dirs) {
+                        String n = d.getName();
+                        if (d.isDirectory() && !"emulated".equals(n) && !"self".equals(n)) ids.add(n);
+                    }
+                }
+            } catch (Exception ignored) {}
+            JSONArray arr = new JSONArray();
+            for (String id : ids) arr.put(id);
+            return arr.toString();
+        }
+
+        @JavascriptInterface
+        public boolean fileExists(String path) {
+            return path != null && !path.isEmpty() && new File(path).exists();
+        }
+
         private String drawableToBase64(Drawable drawable) {
             try {
                 Bitmap bitmap;
+                // Icons are shown well under 192px; bigger ones made the app list take seconds to read
                 if (drawable instanceof BitmapDrawable) {
                     bitmap = ((BitmapDrawable) drawable).getBitmap();
+                    if (bitmap.getWidth() > 192 || bitmap.getHeight() > 192) bitmap = Bitmap.createScaledBitmap(bitmap, 192, 192, true);
                 } else {
                     bitmap = Bitmap.createBitmap(
-                        Math.max(drawable.getIntrinsicWidth(), 72),
-                        Math.max(drawable.getIntrinsicHeight(), 72),
+                        Math.min(Math.max(drawable.getIntrinsicWidth(), 72), 192),
+                        Math.min(Math.max(drawable.getIntrinsicHeight(), 72), 192),
                         Bitmap.Config.ARGB_8888
                     );
                     Canvas canvas = new Canvas(bitmap);
